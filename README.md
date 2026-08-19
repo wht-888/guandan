@@ -51,6 +51,14 @@ ssh -p 443 -o StrictHostKeyChecking=no -R0:localhost:8080 a.pinggy.io
 
 也可用 bore(`bore local 8080 --to bore.pub`)或 cloudflared(注意部分网络会拦 QUIC/SRV,需 `--protocol http2 --edge <ip>:7844`)。长期开黑建议部署到云服务器。
 
+## 停止服务
+
+```bash
+pkill -f "server/index.js"   # 关游戏服务器(8080)
+pkill -f "bore local"        # 关 bore 隧道(如果开了)
+pkill -f "a.pinggy.io"       # 关 pinggy 隧道(如果开了)
+```
+
 ## 技术架构
 
 纯原生实现,零前端框架、零构建步骤,唯一依赖是 `ws`:
