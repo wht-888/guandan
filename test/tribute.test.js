@@ -1,0 +1,70 @@
+/** 还贡两步确认: 点选不直发, 确认才发送 */
+const fs = require('fs');
+const path = require('path');
+const { JSDOM } = require('jsdom');
+
+(async () => {
+  const dom = await JSDOM.fromFile(path.join(__dirname, '../public/index.html'), {
+    url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true
+  });
+  const { window } = dom;
+  const code = ['/shared/rules.js', '/js/sound.js', '/js/table.js']
+    .map(s => fs.readFileSync(path.join(__dirname, s.startsWith('/shared') ? '..' + s : '../public' + s), 'utf8')).join(';\n');
+  window.eval(code + ';window.Table = Table;');
+  const $ = id => window.document.getElementById(id);
+  const vis = el => !el.classList.contains('hidden');
+
+  let captured = null;
+  window.Table.bind(a => { captured = a; }, () => {});
+  window.Table.setPlayers([{ name: '我', avatar: '😎' }, { name: '阿汪', avatar: '🐶' }, { name: '喵喵', avatar: '🐱' }, { name: '熊熊', avatar: '🐻' }]);
+  const C = (id, s, r) => ({ id, suit: s, rank: r, deck: 0 });
+  const myHand = [C(1, 0, 15), C(2, 0, 13)]; // ♠2(可还) ♠K(不可还)
+  window.Table.render({
+    phase: 'tribute', handNo: 2, levels: [3, 2], curLevel: 3, failA: [0, 0], over: false, winnerTeam: null,
+    levelRanks: [3], mySeat: 0, myHand, counts: [2, 26, 27, 26], current: -1, target: null,
+    lastPlays: [null, null, null, null], finished: [],
+    tribute: { pairs: [{ giver: 3, receiver: 0, card: C(90, 4, 17) }], pendingReturns: [0], kangong: false },
+    settle: null, lastEvent: null
+  });
+  const cards = [...$('my-hand').querySelectorAll('.card')];
+  let n = 0;
+  const ok = (c, m) => { n++; if (!c) { console.error('FAIL:', m); process.exit(1); } };
+
+  // 点非法牌(K): 不选中不发送
+  cards[1].click();
+  ok(!vis($('return-bar')), '点非法还贡牌不出现确认条');
+  ok(captured === null, '点非法牌未发送');
+  // 点合法牌(2): 出现确认条但不发送
+  cards[0].click();
+  ok(vis($('return-bar')), '点合法牌出现确认条');
+  ok(captured === null, '点选后不直发(防误触)');
+  ok($('return-tip').textContent.includes('♠2'), '确认条显示所选牌');
+  // 重选: 取消
+  $('btn-return-cancel').click();
+  ok(!vis($('return-bar')), '重选隐藏确认条');
+  // 再点选并确认
+  cards[0].click();
+  $('btn-return-ok').click();
+  ok(captured && captured.kind === 'returnTribute' && captured.cardId === 1, '确认后才发送还贡');
+  // 模拟引擎应用后刷新状态(进入 play 阶段): 确认条必须消失
+  window.Table.render({
+    phase: 'play', handNo: 2, levels: [3, 2], curLevel: 3, failA: [0, 0], over: false, winnerTeam: null,
+    levelRanks: [3], mySeat: 0, myHand: [C(2, 0, 13)], counts: [1, 26, 27, 26], current: 0, target: null,
+    lastPlays: [null, null, null, null], finished: [],
+    tribute: { pairs: [{ giver: 3, receiver: 0, card: C(90, 4, 17), returned: C(1, 0, 15) }], pendingReturns: [], kangong: false },
+    settle: null, lastEvent: { kind: 'returnTribute', from: 0, to: 3 }
+  });
+  ok(!vis($('return-bar')), '确认后确认条消失');
+  // 分组视图下同样消失
+  window.localStorage.setItem('gd-view', 'grouped');
+  window.Table.render({
+    phase: 'play', handNo: 2, levels: [3, 2], curLevel: 3, failA: [0, 0], over: false, winnerTeam: null,
+    levelRanks: [3], mySeat: 0, myHand: [C(2, 0, 13)], counts: [1, 26, 27, 26], current: 0, target: null,
+    lastPlays: [null, null, null, null], finished: [],
+    tribute: { pairs: [{ giver: 3, receiver: 0, card: C(90, 4, 17), returned: C(1, 0, 15) }], pendingReturns: [], kangong: false },
+    settle: null, lastEvent: null
+  });
+  ok(!vis($('return-bar')), '分组视图下确认条同样消失');
+  console.log(`OK: 还贡两步确认 ${n} 项全部通过`);
+  process.exit(0);
+})().catch(e => { console.error('FAIL:', e.message); process.exit(1); });

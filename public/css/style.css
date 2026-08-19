@@ -125,7 +125,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: "PingFang
 .card.joker { color: #d61f0e; }
 .card.joker.small { color: #333; }
 .card.joker .r { font-size: 13px; writing-mode: vertical-lr; letter-spacing: 2px; }
-.card.selected { transform: translateY(-18px); outline: 3px solid #ffd700; }
+.card.selected { filter: brightness(.6); }
 .card.playable-hint { outline: 3px solid #59c2ff; }
 .card.mini { width: 40px; height: 56px; padding: 2px 3px; cursor: default; }
 .card.mini .r { font-size: 13px; }
@@ -153,14 +153,19 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: "PingFang
 #my-hand.grouped .rank-col .card { margin-left: 0; margin-top: -48px; }
 #my-hand.grouped .rank-col .card:first-child { margin-top: 0; }
 #my-hand.grouped .rank-col .card:hover { transform: none; }
-#my-hand.grouped .rank-col .card.selected { transform: translateX(10px); z-index: 5; }
+#my-hand.grouped .rank-col .card.selected { filter: brightness(.6); }
 #my-hand.grouped .combo-col { margin-left: 16px; }
 #my-hand.grouped .combo-col .col-label { font-size: 10px; font-weight: 900; color: #ffe600;
   text-shadow: 0 1px 2px #000; text-align: center; white-space: nowrap; margin-bottom: 2px; min-height: 12px; }
 #my-hand .card { margin-left: -34px; }
 #my-hand .card:first-child { margin-left: 0; }
 #my-hand .card:hover { transform: translateY(-8px); }
-#my-hand .card.selected:hover { transform: translateY(-18px); }
+
+
+#return-bar { position: absolute; bottom: 132px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; z-index: 7;
+  background: rgba(0,0,0,.55); padding: 8px 16px; border-radius: 999px; }
+#return-tip { color: #ffe9a8; font-weight: 700; font-size: 14px; }
 
 /* 操作区 */
 #action-bar { position: absolute; bottom: 132px; left: 50%; transform: translateX(-50%);
@@ -214,7 +219,6 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: "PingFang
   .card .s { font-size: 10px; }
   .card .center { font-size: 13px; right: 2px; bottom: 1px; }
   .card.joker .r { font-size: 8px; letter-spacing: 1px; }
-  .card.selected { transform: translateY(-10px); }
   .wild-badge { font-size: 8px; padding: 0 2px; top: -4px; right: -4px; border-radius: 3px; }
   .card.mini { width: 24px; height: 34px; padding: 1px 2px; border-radius: 4px; }
   .card.mini .r { font-size: 8px; }
@@ -227,7 +231,6 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: "PingFang
   #my-hand .card:first-child { margin-left: 0; }
   #my-hand .card.combo-start { margin-left: 8px; }
   #my-hand .card:hover { transform: none; }
-  #my-hand .card.selected:hover { transform: translateY(-10px); }
   #my-hand.grouped .rank-col { margin-left: 5px; }
   #my-hand.grouped .rank-col:first-child { margin-left: 0; }
   #my-hand.grouped .rank-col .card { margin-top: -34px; }

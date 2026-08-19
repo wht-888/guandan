@@ -24,6 +24,18 @@ const Table = (() => {
     $('btn-pass').onclick = () => { Sound.click(); if (onAction) onAction({ kind: 'pass' }); };
     $('btn-hint').onclick = () => doHint();
     $('btn-reset').onclick = () => { selected.clear(); hintIdx = -1; refreshHandSelection(); Sound.click(); };
+    $('btn-return-ok').onclick = () => {
+      if (selected.size !== 1) return;
+      const cardId = [...selected][0];
+      Sound.click();
+      if (onAction) onAction({ kind: 'returnTribute', cardId });
+    };
+    $('btn-return-cancel').onclick = () => {
+      selected.clear();
+      refreshHandSelection();
+      syncReturnBar();
+      Sound.click();
+    };
     $('btn-view-toggle').onclick = () => {
       viewMode = viewMode === 'fan' ? 'grouped' : 'fan';
       try { localStorage.setItem('gd-view', viewMode); } catch (e) {}
@@ -44,6 +56,18 @@ const Table = (() => {
     if (!b) return;
     b.textContent = arranged ? '↩ 还原' : '✨ 一键组牌';
     b.classList.toggle('on', !!arranged);
+  }
+
+  function syncReturnBar() {
+    const bar = $('return-bar');
+    if (!bar || !state) return;
+    const myTurnReturn = state.phase === 'tribute' && state.tribute && state.tribute.pendingReturns.indexOf(state.mySeat) >= 0;
+    const show = myTurnReturn && selected.size === 1;
+    bar.classList.toggle('hidden', !show);
+    if (show) {
+      const c = state.myHand.find(x => x.id === [...selected][0]);
+      $('return-tip').textContent = '还贡 ' + R.cardText(c) + ' ?';
+    }
   }
 
   function syncViewBtn() {
@@ -106,7 +130,7 @@ const Table = (() => {
   function render(st) {
     state = st;
     selected.clear(); hintList = []; hintIdx = -1;
-    renderInfo(); renderSeats(); renderPlayed(); renderHand(); placeActionBar(); renderActionBar(); renderTribute(); renderSettle();
+    renderInfo(); renderSeats(); renderPlayed(); renderHand(); placeActionBar(); renderActionBar(); renderTribute(); renderSettle(); syncReturnBar();
     handleEvent(st.lastEvent);
   }
 
@@ -202,7 +226,11 @@ const Table = (() => {
         const face = c.rank === 15 ? 2 : c.rank;
         if (c.suit === 4 || face > 10 || R.isWild(c, state.levelRanks)) { toast('还贡必须是不大于10的普通牌'); return; }
         Sound.select();
-        if (onAction) onAction({ kind: 'returnTribute', cardId: c.id });
+        // 还贡两步确认: 点选(单选) -> 确认还贡
+        if (selected.has(c.id)) selected.delete(c.id);
+        else { selected.clear(); selected.add(c.id); }
+        refreshHandSelection();
+        syncReturnBar();
         return;
       }
       if (selected.has(c.id)) selected.delete(c.id); else selected.add(c.id);
@@ -276,9 +304,11 @@ const Table = (() => {
   }
 
   function placeActionBar() {
-    // 操作栏始终位于手牌正上方, 随手牌(分组列)高度上抬
+    // 操作栏/还贡确认条始终位于手牌正上方, 随手牌(分组列)高度上抬
     const h = $('my-hand').offsetHeight || 100;
     $('action-bar').style.bottom = (18 + h + 10) + 'px';
+    const rb = $('return-bar');
+    if (rb) rb.style.bottom = (18 + h + 10) + 'px';
   }
 
   function refreshHandSelection() {
@@ -302,7 +332,7 @@ const Table = (() => {
     b.classList.remove('hidden');
     const t = state.tribute;
     const lines = t.pairs.map(p => `${seatName(p.giver)} 进贡 ${R.cardText(p.card)} 给 ${seatName(p.receiver)}`);
-    if (t.pendingReturns.indexOf(state.mySeat) >= 0) lines.push('<b>👆 请选择一张 ≤10 的牌还贡</b>');
+    if (t.pendingReturns.indexOf(state.mySeat) >= 0) lines.push('<b>👆 点选一张 ≤10 的牌, 再点「确认还贡」</b>');
     else if (t.pendingReturns.length) lines.push(`等待 ${t.pendingReturns.map(seatName).join('、')} 还贡…`);
     b.innerHTML = lines.join('<br>');
   }
