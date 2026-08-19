@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>欢乐掼蛋</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- 首页 -->
+<div id="screen-home" class="screen">
+  <div class="home-bg"></div>
+  <div class="home-content">
+    <div class="game-title"><span class="t1">欢乐</span><span class="t2">掼蛋</span></div>
+    <div class="game-subtitle">双副牌 · 四人组队 · 升级打A</div>
+    <div class="home-buttons">
+      <button class="btn btn-big" id="btn-single">🎮 单机模式</button>
+      <button class="btn btn-big btn-green" id="btn-online">🌐 联机模式</button>
+      <button class="btn btn-big btn-blue" id="btn-rules">📖 规则说明</button>
+    </div>
+  </div>
+</div>
+
+<!-- 联机大厅 -->
+<div id="screen-lobby" class="screen hidden">
+  <div class="panel lobby-panel">
+    <h2>联机大厅</h2>
+    <div id="lobby-entry">
+      <input id="input-name" class="input" maxlength="8" placeholder="输入你的昵称">
+      <button class="btn btn-green" id="btn-create">创建房间</button>
+      <div class="lobby-join">
+        <input id="input-code" class="input" maxlength="4" placeholder="房间号">
+        <button class="btn" id="btn-join">加入房间</button>
+      </div>
+      <button class="btn btn-gray" id="btn-lobby-back">返回</button>
+    </div>
+    <div id="lobby-room" class="hidden">
+      <div class="room-code">房间号 <b id="room-code">----</b><br><small>同 WiFi 好友打开同一网址输入房间号加入</small></div>
+      <div id="room-seats" class="room-seats"></div>
+      <div class="room-btns">
+        <button class="btn btn-green" id="btn-add-ai">+ 机器人</button>
+        <button class="btn btn-big" id="btn-start">开始游戏</button>
+        <button class="btn btn-gray" id="btn-leave">离开房间</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 牌桌 -->
+<div id="screen-table" class="screen hidden">
+  <div class="felt">
+    <div id="table-info">
+      <div id="info-levels"></div>
+      <div id="info-hand"></div>
+    </div>
+    <button id="btn-exit" title="退出">✕</button>
+
+    <div class="seat seat-top" id="seat-top"></div>
+    <div class="seat seat-left" id="seat-left"></div>
+    <div class="seat seat-right" id="seat-right"></div>
+    <div class="seat seat-bottom" id="seat-bottom"></div>
+
+    <div class="played played-top" id="played-top"></div>
+    <div class="played played-left" id="played-left"></div>
+    <div class="played played-right" id="played-right"></div>
+    <div class="played played-bottom" id="played-bottom"></div>
+
+    <div id="tribute-banner" class="hidden"></div>
+    <div id="center-banner" class="hidden"></div>
+
+    <div id="hand-tools">
+      <button class="tool-btn" id="btn-view-toggle">🗂 分组</button>
+      <button class="tool-btn" id="btn-arrange">✨ 一键组牌</button>
+    </div>
+    <div id="my-hand"></div>
+
+    <div id="action-bar" class="hidden">
+      <button class="btn btn-blue" id="btn-hint">提示</button>
+      <button class="btn btn-gray" id="btn-reset">重选</button>
+      <button class="btn btn-gray" id="btn-pass">不出</button>
+      <button class="btn" id="btn-play">出牌</button>
+    </div>
+
+    <div id="rotate-hint"><div style="font-size:52px">📱</div><div>请旋转手机,横屏游玩</div></div>
+    <div id="modal-settle" class="modal hidden">
+      <div class="panel" id="settle-content"></div>
+    </div>
+    <div id="toast" class="hidden"></div>
+  </div>
+</div>
+
+<!-- 规则 -->
+<div id="modal-rules" class="modal hidden">
+  <div class="panel rules-panel">
+    <h2>掼蛋规则</h2>
+    <div class="rules-body">
+      <p><b>基本:</b>两副牌共108张,4人游戏,对家两人为一队,从2开始升级,先打过A的一方获胜。</p>
+      <p><b>牌点:</b>大王&gt;小王&gt;级牌&gt;A&gt;K&gt;Q&gt;J&gt;10&gt;…&gt;3&gt;2。<b>红桃级牌为「逢人配」</b>,可代替除王外任意牌。每局级牌为上一局头游所在队的当前级数(谁升级打谁的级),第一局打2。</p>
+      <p><b>牌型:</b>单张、对子、三张、三带二、顺子(5张)、三连对、钢板(两连三张)、炸弹(4张及以上)、同花顺、四大天王。序列牌型中2接在A后:A2345/AA2233/AAA222合法且最小,KKAA22非法;级牌按自然位置参与。</p>
+      <p><b>炸弹大小:</b>四大天王 &gt; 6张及以上炸弹 &gt; 同花顺 &gt; 5张炸 &gt; 4张炸;炸弹可压任何非炸弹牌型。</p>
+      <p><b>进贡:</b>上一局末游(双下时末两家)向头游进贡最大牌,赢家还贡一张≤10的牌;进贡方抓到两张大王则<b>抗贡</b>免贡。贡牌与还贡牌全场公开。</p>
+      <p><b>首出:</b>还贡后由<b>进贡牌最大者</b>先出牌(单贡即末游先出);双下贡牌相同由头游上家先出;抗贡则由上局头游先出;第一局随机。</p>
+      <p><b>接风:</b>一家出完牌且其最后一手无人压过时,由其对家领出。</p>
+      <p><b>升级:</b>双下升3级,头游+三游升2级,头游+末游升1级。打A时须头游且对家非末游方可过A,三次不过回到2。</p>
+    </div>
+    <button class="btn" id="btn-rules-close">知道了</button>
+  </div>
+</div>
+
+<script src="/shared/rules.js"></script>
+<script src="/shared/engine.js"></script>
+<script src="/shared/ai.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/net.js"></script>
+<script src="js/table.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
