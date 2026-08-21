@@ -18,6 +18,7 @@
   /* ============ 单机模式 ============ */
   function startLocal() {
     mode = 'local';
+    Table.resetSession();
     engine = new GuandanEngine.Engine({});
     engine.startHand();
     Table.setPlayers(LOCAL_PLAYERS);
@@ -83,6 +84,7 @@
     mode = 'online';
     mySeat = m.seat;
     if (roomSnap) Table.setPlayers(roomSnap.seats);
+    if ($('screen-table').classList.contains('hidden')) Table.resetSession();
     show('screen-table');
     Table.render(m.state);
   });
