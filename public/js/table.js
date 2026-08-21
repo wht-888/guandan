@@ -233,7 +233,9 @@ const Table = (() => {
 
   // 分组列限高: 默认每张露出30px, 超过 maxColH 则加大重叠
   function stackCards(col, cardEls, hasLabel) {
-    const mobile = window.matchMedia ? window.matchMedia('(max-width: 900px)').matches : false;
+    const mobile = window.matchMedia
+      ? window.matchMedia('(max-width: 1024px), (max-height: 600px) and (pointer: coarse)').matches
+      : false;
     const cardH = mobile ? 48 : 88;
     const defStrip = mobile ? 24 : 40;   // 露出 点数+花色
     const maxColH = (mobile ? 140 : 300) - (hasLabel ? (mobile ? 12 : 14) : 0);
