@@ -10,6 +10,7 @@ const { Engine } = require('../shared/engine.js');
 const AI = require('../shared/ai.js');
 
 const PORT = process.env.PORT || 8080;
+const AI_DELAY_MS = Number(process.env.AI_DELAY_MS || 900);
 const ROOT = path.join(__dirname, '..');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
 
@@ -59,7 +60,7 @@ function broadcastState(room) {
 
 function scheduleAI(room) {
   clearTimeout(room.aiTimer);
-  room.aiTimer = setTimeout(() => stepAI(room), 900);
+  room.aiTimer = setTimeout(() => stepAI(room), AI_DELAY_MS);
 }
 
 function stepAI(room) {

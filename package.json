@@ -5,9 +5,10 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "test": "node test/rules.test.js && node test/simulate.js 30",
+    "test": "node test/rules.test.js && node test/ai.test.js && node test/simulate.js 30",
+    "bench:ai": "node test/ai.benchmark.js 50",
     "test:ui": "node test/ui.smoke.js",
-    "test:e2e": "PORT=18099 node server/index.js & sleep 1; node test/e2e.js; kill %1"
+    "test:e2e": "PORT=18099 AI_DELAY_MS=30 node server/index.js & pid=$!; sleep 1; node test/e2e.js; code=$?; kill $pid; exit $code"
   },
   "dependencies": {
     "ws": "^8.18.0"
