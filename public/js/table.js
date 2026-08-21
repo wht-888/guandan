@@ -10,6 +10,8 @@ const Table = (() => {
   let onAction = null, onNext = null;
   let lastEventRef = null;
   let viewMode = 'fan';            // fan=横排 grouped=分组
+  let lastHandKey = null;
+  let animateDeal = false;
   try { viewMode = localStorage.getItem('gd-view') || 'fan'; } catch (e) {}
   let arranged = null;             // {handNo, ids:[], breaks:Set}
 
@@ -18,6 +20,14 @@ const Table = (() => {
   function relOf(seat) { return (seat - state.mySeat + 4) % 4; }
 
   function setPlayers(p) { players = p; }
+  function resetSession() {
+    selected.clear();
+    hintList = [];
+    hintIdx = -1;
+    arranged = null;
+    lastEventRef = null;
+    lastHandKey = null;
+  }
   function bind(actionCb, nextCb) {
     onAction = actionCb; onNext = nextCb;
     $('btn-play').onclick = () => doPlay();
@@ -48,6 +58,9 @@ const Table = (() => {
       else { doArrange(); toast('已按 同花顺>炸弹>钢板>顺子 组牌, 再点一次还原'); }
       syncArrangeBtn(); renderHand();
     };
+    window.addEventListener('resize', () => {
+      if (state) requestAnimationFrame(placeActionBar);
+    });
     syncViewBtn();
   }
 
@@ -75,6 +88,7 @@ const Table = (() => {
     if (!b) return;
     b.textContent = viewMode === 'fan' ? '🗂 分组' : '🃏 横排';
     b.classList.toggle('on', viewMode === 'grouped');
+    $('hand-tools').classList.toggle('hand-grouped', viewMode === 'grouped');
   }
 
   // 一键组牌: 贪心按优先级拆组合 同花顺>天王>炸弹>钢板>三连对>顺子>三带二>三张>对子>单张
@@ -114,6 +128,7 @@ const Table = (() => {
     el.className = 'card' + (mini ? ' mini' : '') +
       (isJoker ? ' joker' + (c.rank === 16 ? ' small' : '') : (c.suit === 1 || c.suit === 2 ? ' red' : ' black'));
     el.dataset.id = c.id;
+    el.setAttribute('aria-label', R.cardText(c));
     if (isJoker) {
       el.innerHTML = `<span class="r">${c.rank === 16 ? '小王' : '大王'}</span>`;
     } else {
@@ -128,10 +143,14 @@ const Table = (() => {
   }
 
   function render(st) {
+    const handKey = `${st.handNo}:${st.mySeat}`;
+    animateDeal = handKey !== lastHandKey;
     state = st;
     selected.clear(); hintList = []; hintIdx = -1;
     renderInfo(); renderSeats(); renderPlayed(); renderHand(); placeActionBar(); renderActionBar(); renderTribute(); renderSettle(); syncReturnBar();
     handleEvent(st.lastEvent);
+    lastHandKey = handKey;
+    animateDeal = false;
   }
 
   function renderInfo() {
@@ -158,7 +177,7 @@ const Table = (() => {
     return out.length ? `<div class="pub-cards">${out.join('')}</div>` : '';
   }
   function pubBadge(c, label) {
-    const cls = c.suit === 4 ? 'jk' : (c.suit === 1 || c.suit === 2 ? 'red' : 'black');
+    const cls = c.suit === 4 ? (c.rank === 16 ? 'black' : 'jk') : (c.suit === 1 || c.suit === 2 ? 'red' : 'black');
     const txt = c.suit === 4 ? R.RANK_NAMES[c.rank] : R.SUITS[c.suit] + R.RANK_NAMES[c.rank];
     return `<span class="pub-card ${cls}"><span class="lb">${label}</span>${txt}</span>`;
   }
@@ -184,6 +203,7 @@ const Table = (() => {
   }
 
   function renderPlayed() {
+    const freshEvent = state.lastEvent && state.lastEvent !== lastEventRef ? state.lastEvent : null;
     for (let rel = 0; rel < 4; rel++) {
       const seat = (state.mySeat + rel) % 4;
       const zone = $('played-' + POS[rel]);
@@ -191,13 +211,22 @@ const Table = (() => {
       const lp = state.lastPlays[seat];
       if (!lp) continue;
       if (lp.pass) {
-        zone.innerHTML = '<div class="pass-label">不出</div>';
+        const freshPass = freshEvent && freshEvent.kind === 'pass' && freshEvent.seat === seat;
+        zone.innerHTML = `<div class="pass-label${freshPass ? ' pass-in' : ''}">不出</div>`;
       } else {
         const tag = document.createElement('div');
         tag.className = 'pattern-tag';
         tag.textContent = R.patternName(lp.pattern);
         zone.appendChild(tag);
-        for (const c of lp.cards) zone.appendChild(cardEl(c, true));
+        const freshPlay = freshEvent && freshEvent.kind === 'play' && freshEvent.seat === seat;
+        lp.cards.forEach((c, i) => {
+          const el = cardEl(c, true);
+          if (freshPlay) {
+            el.classList.add('play-in', 'play-from-' + POS[rel]);
+            el.style.setProperty('--play-delay', (i * 34) + 'ms');
+          }
+          zone.appendChild(el);
+        });
       }
     }
   }
@@ -256,9 +285,24 @@ const Table = (() => {
     } else arranged = null;
     syncArrangeBtn();
 
+    const dealOrder = new Map(cards.map((c, i) => [c.id, i]));
+
     const mkEl = c => {
       const el = cardEl(c, false);
-      el.onclick = onCardClick(el, c, myTurnReturn);
+      const activate = onCardClick(el, c, myTurnReturn);
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-pressed', 'false');
+      el.tabIndex = 0;
+      el.onclick = activate;
+      el.onkeydown = e => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        activate();
+      };
+      if (animateDeal) {
+        el.classList.add('deal-in');
+        el.style.setProperty('--deal-delay', (Math.min(dealOrder.get(c.id) || 0, 18) * 24) + 'ms');
+      }
       return el;
     };
 
@@ -304,16 +348,22 @@ const Table = (() => {
   }
 
   function placeActionBar() {
-    // 操作栏/还贡确认条始终位于手牌正上方, 随手牌(分组列)高度上抬
-    const h = $('my-hand').offsetHeight || 100;
-    $('action-bar').style.bottom = (18 + h + 10) + 'px';
+    // 用实际位置计算间距, 同时兼容分组牌高、横竖屏切换与 iPhone 安全区
+    const hand = $('my-hand');
+    const table = hand.parentElement;
+    const handTop = hand.getBoundingClientRect().top;
+    const tableBottom = table.getBoundingClientRect().bottom;
+    const bottom = Math.max(0, tableBottom - handTop + 10);
+    $('action-bar').style.bottom = bottom + 'px';
     const rb = $('return-bar');
-    if (rb) rb.style.bottom = (18 + h + 10) + 'px';
+    if (rb) rb.style.bottom = bottom + 'px';
   }
 
   function refreshHandSelection() {
     for (const el of $('my-hand').querySelectorAll('.card')) {
-      el.classList.toggle('selected', selected.has(Number(el.dataset.id)));
+      const isSelected = selected.has(Number(el.dataset.id));
+      el.classList.toggle('selected', isSelected);
+      el.setAttribute('aria-pressed', String(isSelected));
     }
   }
 
@@ -451,5 +501,5 @@ const Table = (() => {
     if (onAction) onAction({ kind: 'play', cardIds: cards.map(c => c.id), type: candidates[0].type });
   }
 
-  return { setPlayers, bind, render, toast, banner };
+  return { setPlayers, resetSession, bind, render, toast, banner };
 })();
