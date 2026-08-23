@@ -16,7 +16,9 @@ ok(R.analyze([C(0, 5), C(1, 5), C(2, 5)], lv2)[0].type === 'triple', '三张');
 ok(R.analyze([C(0, 5), C(1, 5), C(2, 5), C(0, 9), C(1, 9)], lv2)[0].type === 'fullhouse', '三带二');
 ok(R.analyze([C(0, 5), C(1, 5), C(2, 5), C(3, 5)], lv2)[0].type === 'bomb', '4张炸');
 ok(R.analyze([C(0, 3), C(1, 4), C(2, 5), C(3, 6), C(0, 7)], lv2).some(p => p.type === 'straight'), '顺子');
-ok(R.analyze([C(0, 3), C(0, 4), C(0, 5), C(0, 6), C(0, 7)], lv2).some(p => p.type === 'straightflush'), '同花顺');
+const naturalSF = R.analyze([C(0, 3), C(0, 4), C(0, 5), C(0, 6), C(0, 7)], lv2);
+ok(naturalSF.some(p => p.type === 'straightflush'), '同花顺');
+ok(!naturalSF.some(p => p.type === 'straight'), '同花顺不能降格解释为普通顺子');
 ok(R.analyze([C(0, 6), C(1, 6), C(0, 7), C(1, 7), C(0, 8), C(1, 8)], lv2).some(p => p.type === 'pairseq'), '三连对');
 ok(R.analyze([C(0, 6), C(1, 6), C(2, 6), C(0, 7), C(1, 7), C(2, 7)], lv2).some(p => p.type === 'tripleseq'), '钢板');
 ok(R.analyze([C(4, 16), C(4, 16), C(4, 17), C(4, 17)], lv2)[0].type === 'jokerbomb', '四大天王');
@@ -39,6 +41,7 @@ ok(R.canBeat(straight9, straight8) && !R.canBeat(straight8, straight9), '顺子�
 ok(R.canBeat({ type: 'bomb', key: 3, len: 4 }, straight9), '炸弹压顺子');
 ok(R.canBeat({ type: 'straightflush', key: 5, len: 5 }, { type: 'bomb', key: 14, len: 5 }), '同花顺>5张炸');
 ok(R.canBeat({ type: 'bomb', key: 3, len: 6 }, { type: 'straightflush', key: 14, len: 5 }), '6张炸>同花顺');
+ok(!R.canBeat({ type: 'bomb', key: 14, len: 4 }, { type: 'straightflush', key: 3, len: 5 }), '4张炸压不过同花顺');
 ok(R.canBeat({ type: 'jokerbomb', key: 17, len: 4 }, { type: 'bomb', key: 15.5, len: 8 }), '天王最大');
 ok(!R.canBeat({ type: 'pair', key: 14, len: 2 }, { type: 'pair', key: 15.5, len: 2 }), '对A压不过对级牌');
 ok(!R.canBeat({ type: 'single', key: 3, len: 1 }, { type: 'pair', key: 3, len: 2 }), '异型不可压');
@@ -77,5 +80,23 @@ ok(R.analyze([C(1, 14), C(1, 15), C(1, 3), C(1, 4), C(1, 5)], lv7).some(p => p.t
 ok(R.analyze([C(0, 10), C(0, 11), C(0, 12), C(0, 13), C(0, 14)], lv7).some(p => p.type === 'straightflush' && p.key === 9), '10JQKA同花顺最大');
 ok(!R.analyze([C(1, 13), C(1, 14), C(1, 15), C(1, 3), C(1, 4)], lv7).some(p => p.type === 'straightflush'), 'KA234同花顺非法');
 ok(R.canBeat({ type: 'straightflush', key: 1, len: 5 }, { type: 'straightflush', key: 0, len: 5 }), '23456同花顺压A2345同花顺');
+
+// 回归:最后一手同花顺按炸弹判定,四张炸不能压,三家过牌后由队友接风。
+{
+  const { Engine } = require('../shared/engine.js');
+  const e = new Engine({});
+  const sf = [C(0, 3), C(0, 4), C(0, 5), C(0, 6), C(0, 7)];
+  const fourBomb = [C(0, 9), C(1, 9), C(2, 9), C(3, 9)];
+  e.phase = 'play'; e.handNo = 1; e.curLevel = 2; e.current = 0;
+  e.hands = [sf.slice(), fourBomb.concat([C(0, 10)]), [C(1, 3)], [C(2, 4)]];
+  e.finished = []; e.target = null; e.passCount = 0; e.lastPlays = [null, null, null, null];
+  const lead = e.applyAction(0, { kind: 'play', cardIds: sf.map(c => c.id) });
+  ok(lead.ok && e.target.pattern.type === 'straightflush' && e.finished[0] === 0, '最后一手同花顺按同花顺出完');
+  const bombTry = e.applyAction(1, { kind: 'play', cardIds: fourBomb.map(c => c.id) });
+  ok(!bombTry.ok && e.current === 1, '下家四张炸不能压同花顺');
+  ok(e.applyAction(1, { kind: 'pass' }).ok, '下家对同花顺过牌');
+  ok(e.applyAction(2, { kind: 'pass' }).ok, '队友等待接风时过牌');
+  ok(e.applyAction(3, { kind: 'pass' }).ok && e.current === 2 && e.target === null, '三家过牌后由出完者队友接风');
+}
 
 console.log(`OK: rules 单测 ${n} 项全部通过`);

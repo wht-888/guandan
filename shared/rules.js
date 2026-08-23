@@ -136,8 +136,9 @@
     const suits = new Set(normals.map(c => c.suit));
     for (const { win, key } of seqWindows(5)) {
       if (ranks.every(r => win.indexOf(r) >= 0)) {
-        add('straight', key, w);
-        if (suits.size <= 1) add('straightflush', key, w);
+        // 同一组牌构成同花顺时只能按同花顺解释,不能降格为普通顺子。
+        // 否则四张炸会错误地压过同花顺,并破坏出完后的接风牌权。
+        add(suits.size <= 1 ? 'straightflush' : 'straight', key, w);
       }
     }
   }
@@ -234,7 +235,20 @@
         else if (wUsed.length < wilds.length) wUsed.push(wilds[wUsed.length]);
         else { ok = false; break; }
       }
-      if (ok) push('straight', key, pick.concat(wUsed), wUsed.length);
+      if (ok) {
+        // 枚举普通顺时避免选出一组实际应判为同花顺的牌。
+        // 若某一点有其他花色,换入该牌后仍可作为普通顺子提示。
+        const suits = new Set(pick.map(c => c.suit));
+        if (suits.size <= 1) {
+          const flushSuit = pick.length ? pick[0].suit : -1;
+          for (let i = 0; i < win.length; i++) {
+            const alternatives = byRank[win[i]] || [];
+            const alt = alternatives.find(c => c.suit !== flushSuit);
+            if (alt) { pick[i] = alt; break; }
+          }
+        }
+        if (new Set(pick.map(c => c.suit)).size > 1) push('straight', key, pick.concat(wUsed), wUsed.length);
+      }
     }
     // 同花顺
     for (let s = 0; s < 4; s++) {

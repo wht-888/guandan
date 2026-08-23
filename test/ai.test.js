@@ -81,7 +81,7 @@ function singleTarget(rank, seat = 1) {
 
 // 残局优先拆成两手:先出顺子,留下可一手走完的对子。
 {
-  const hand = [card(3), card(4), card(5), card(6), card(7), card(9, 0), card(9, 2)];
+  const hand = [card(3, 0), card(4, 1), card(5, 2), card(6, 3), card(7, 0), card(9, 0), card(9, 2)];
   const st = baseState(hand, { counts: [7, 6, 5, 6] });
   const action = AI.decide(fakeEngine(st), 0);
   ok(action.kind === 'play' && action.type === 'straight', '应先出顺子并留下对子收尾');
