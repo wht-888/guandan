@@ -55,7 +55,7 @@ const Table = (() => {
       if (!state || !state.myHand.length) return;
       Sound.click();
       if (arranged) { arranged = null; }
-      else { doArrange(); toast('已按 同花顺>炸弹>钢板>顺子 组牌, 再点一次还原'); }
+      else { doArrange(); toast('已保留炸弹并按尽量少的手数组牌, 再点一次还原'); }
       syncArrangeBtn(); renderHand();
     };
     window.addEventListener('resize', () => {
@@ -91,33 +91,14 @@ const Table = (() => {
     $('hand-tools').classList.toggle('hand-grouped', viewMode === 'grouped');
   }
 
-  // 一键组牌: 贪心按优先级拆组合 同花顺>天王>炸弹>钢板>三连对>顺子>三带二>三张>对子>单张
-  function comboPrio(p) {
-    if (p.type === 'straightflush') return 100;
-    if (p.type === 'jokerbomb') return 99;
-    if (p.type === 'bomb') return 90 + p.len;
-    if (p.type === 'tripleseq') return 80;
-    if (p.type === 'pairseq') return 70;
-    if (p.type === 'straight') return 60;
-    if (p.type === 'fullhouse') return 50;
-    if (p.type === 'triple') return 40;
-    if (p.type === 'pair') return 30;
-    return 10;
-  }
+  // 一键组牌:先锁定不重叠炸弹,再搜索剩余牌的最少手数拆分。
   function doArrange() {
-    const lv = state.levelRanks;
-    const remaining = state.myHand.slice();
     const ids = [], breaks = new Set(), labels = new Map();
-    while (remaining.length) {
-      const plays = R.findPlays(remaining, lv);
-      plays.sort((a, b) => (comboPrio(b) - comboPrio(a)) || (a.wildUsed - b.wildUsed) || (b.key - a.key));
-      const pick = plays[0];
+    const groups = R.optimizeHandGroups(state.myHand, state.levelRanks);
+    for (const pick of groups) {
       if (ids.length) breaks.add(pick.cards[0].id);
       labels.set(pick.cards[0].id, R.patternName(pick));
-      for (const c of pick.cards) {
-        ids.push(c.id);
-        remaining.splice(remaining.indexOf(c), 1);
-      }
+      for (const c of pick.cards) ids.push(c.id);
     }
     arranged = { handNo: state.handNo, ids, breaks, labels };
   }

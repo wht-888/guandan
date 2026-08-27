@@ -321,11 +321,110 @@
     return plays[0];
   }
 
+  function removePlayCards(hand, play) {
+    const ids = new Set(play.cards.map(c => c.id));
+    return hand.filter(c => !ids.has(c.id));
+  }
+
+  function singlePlay(card, lv) {
+    const pattern = analyze([card], lv)[0];
+    return pattern || { type: 'single', key: orderOf(card.rank, lv), len: 1, cards: [card], wildUsed: isWild(card, lv) ? 1 : 0 };
+  }
+
+  function partitionQuality(groups) {
+    let singles = 0, wildUsed = 0, cardsInLongPlays = 0;
+    for (const p of groups) {
+      if (p.len === 1) singles++;
+      else cardsInLongPlays += p.len;
+      wildUsed += p.wildUsed || 0;
+    }
+    return [groups.length, singles, wildUsed, -cardsInLongPlays];
+  }
+
+  function betterPartition(a, b) {
+    if (!b) return true;
+    const qa = partitionQuality(a), qb = partitionQuality(b);
+    for (let i = 0; i < qa.length; i++) {
+      if (qa[i] !== qb[i]) return qa[i] < qb[i];
+    }
+    return false;
+  }
+
+  /**
+   * 一键组牌:先保留不重叠炸弹,再让剩余牌的总手数尽可能少。
+   * 返回的每个元素都是一手合法牌型,且所有 cards 恰好覆盖原手牌一次。
+   */
+  function optimizeHandGroups(hand, lv, options) {
+    options = options || {};
+    const allCards = hand.slice();
+    // 每锁定一组后重新枚举,可发现同点同花色但由另一副牌组成的第二组炸弹。
+    let bombRemaining = allCards.slice();
+    const locked = [], lockedIds = new Set();
+    while (bombRemaining.length) {
+      const bombCandidates = findPlays(bombRemaining, lv)
+        .filter(p => bombPower(p) > 0)
+        .sort((a, b) => (bombPower(b) - bombPower(a)) || (b.len - a.len) || (a.wildUsed - b.wildUsed));
+      if (!bombCandidates.length) break;
+      const pick = bombCandidates[0];
+      locked.push(pick);
+      for (const c of pick.cards) lockedIds.add(c.id);
+      bombRemaining = removePlayCards(bombRemaining, pick);
+    }
+
+    const rest = allCards.filter(c => !lockedIds.has(c.id));
+    const memo = new Map();
+    const maxNodes = options.maxNodes || 12000;
+    const deadline = Date.now() + (options.maxMs || 120);
+    let nodes = 0;
+
+    function signature(cards) {
+      return cards.map(c => c.id).sort((a, b) => a - b).join(',');
+    }
+
+    function greedy(cards) {
+      let remaining = cards.slice();
+      const out = [];
+      while (remaining.length) {
+        const plays = findPlays(remaining, lv)
+          .filter(p => p.len > 1 && bombPower(p) === 0)
+          .sort((a, b) => (b.len - a.len) || (a.wildUsed - b.wildUsed) || (a.key - b.key));
+        if (!plays.length) break;
+        out.push(plays[0]);
+        remaining = removePlayCards(remaining, plays[0]);
+      }
+      for (const c of remaining) out.push(singlePlay(c, lv));
+      return out;
+    }
+
+    function solve(cards) {
+      if (!cards.length) return [];
+      const sig = signature(cards);
+      if (memo.has(sig)) return memo.get(sig);
+      let best = greedy(cards);
+      if (++nodes > maxNodes || Date.now() > deadline) return best;
+
+      const plays = findPlays(cards, lv)
+        .filter(p => p.len > 1 && bombPower(p) === 0)
+        .sort((a, b) => (b.len - a.len) || (a.wildUsed - b.wildUsed) || (a.key - b.key));
+      for (const p of plays) {
+        const remaining = removePlayCards(cards, p);
+        // 非炸弹牌型最长6张;即使达到理论下界,仍继续比较单张数和配牌消耗。
+        if (1 + Math.ceil(remaining.length / 6) > best.length) continue;
+        const candidate = [p].concat(solve(remaining));
+        if (betterPartition(candidate, best)) best = candidate;
+      }
+      memo.set(sig, best);
+      return best;
+    }
+
+    return locked.concat(solve(rest));
+  }
+
   function patternName(p) { return PATTERN_NAMES[p.type] || p.type; }
 
   return {
     SUITS, RANK_NAMES, PATTERN_NAMES,
     buildDeck, levelRankOf, isWild, orderOf, cardText, sortHand,
-    analyze, canBeat, isBombType, bombPower, findPlays, findBeat, patternName
+    analyze, canBeat, isBombType, bombPower, findPlays, findBeat, optimizeHandGroups, patternName
   };
 });
