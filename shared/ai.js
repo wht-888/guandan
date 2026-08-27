@@ -199,6 +199,71 @@
     return alive.length ? Math.min.apply(null, alive.map(s => st.counts[s])) : 99;
   }
 
+  /** 将同一点的 4/5/6...张炸合并为最大库存,统计手牌中有多少牌被炸弹占用。 */
+  function bombInventory(plays, hand) {
+    const best = new Map();
+    for (const p of plays) {
+      if (R.bombPower(p) <= 0) continue;
+      const key = p.type + '|' + p.key;
+      const cur = best.get(key);
+      if (!cur || p.len > cur.len) best.set(key, p);
+    }
+    const ids = new Set();
+    for (const p of best.values()) for (const c of p.cards) ids.add(c.id);
+    return {
+      bombs: Array.from(best.values()),
+      groups: best.size,
+      cards: ids.size,
+      ratio: hand.length ? ids.size / hand.length : 0
+    };
+  }
+
+  /**
+   * 牌桌压力分:对手出完/进入 2~6 张收尾时迅速升高;
+   * 自己手里炸弹越多,继续囤积的机会成本也越高。
+   */
+  function tablePressure(st, seat, hand, inventory) {
+    const enemies = enemySeats(seat);
+    const alive = enemies.filter(s => st.finished.indexOf(s) < 0);
+    const finishedEnemies = enemies.length - alive.length;
+    const enemyMin = alive.length ? Math.min.apply(null, alive.map(s => st.counts[s])) : 0;
+    const enemyTotal = alive.reduce((sum, s) => sum + st.counts[s], 0);
+    let score = finishedEnemies * 6;
+    if (enemyMin <= 2) score += 6;
+    else if (enemyMin <= 4) score += 4;
+    else if (enemyMin <= 6) score += 2;
+    else if (enemyMin <= 8) score += 1;
+    if (enemyTotal <= 6) score += 4;
+    else if (enemyTotal <= 10) score += 2;
+    else if (enemyTotal <= 14) score += 1;
+    if (st.finished.indexOf(E.partnerOf(seat)) >= 0) score += 2;
+    if (hand.length <= 8) score += 3;
+    else if (hand.length <= 12) score += 1;
+    if (inventory.groups >= 2) score += 2;
+    if (inventory.ratio >= .5) score += 3;
+    else if (inventory.ratio >= .35) score += 1;
+    return score;
+  }
+
+  function bombReleaseScore(play, hand, lv, cache) {
+    const rest = removePlay(hand, play);
+    const distance = finishDistance(rest, lv, cache);
+    return distance * 180 + shapeScore(rest, lv) * 5 + R.bombPower(play) / 45 - play.len * 14;
+  }
+
+  function hasFinishedEnemy(st, seat) {
+    return enemySeats(seat).some(s => st.finished.indexOf(s) >= 0);
+  }
+
+  function shouldLeadBomb(play, hand, st, seat, cache, inventory, pressure) {
+    const rest = removePlay(hand, play);
+    if (finishDistance(rest, st.levelRanks, cache) <= 1) return true;
+    if (hasFinishedEnemy(st, seat)) return true;
+    if (inventory.groups >= 2 && hand.length <= 10 && minEnemyCount(st, seat) <= 4) return true;
+    if (inventory.ratio >= .6 && hand.length <= 9 && minEnemyCount(st, seat) <= 5) return true;
+    return false;
+  }
+
   function chooseReturn(hand, lv) {
     const candidates = hand.filter(c => {
       const face = c.rank === 15 ? 2 : c.rank;
@@ -255,6 +320,14 @@
       else feedType = 'single';
     }
 
+    // 炸弹占据大量手牌或牌桌已进入高压收尾时,主动出最合适的炸弹减负并夺权。
+    const inventory = bombInventory(plays, hand);
+    const pressure = tablePressure(st, seat, hand, inventory);
+    if (!feedType && inventory.bombs.length) {
+      const bombs = inventory.bombs.slice().sort((a, b) => bombReleaseScore(a, hand, lv, cache) - bombReleaseScore(b, hand, lv, cache));
+      if (shouldLeadBomb(bombs[0], hand, st, seat, cache, inventory, pressure)) return bombs[0];
+    }
+
     let pool = plays.filter(p => R.bombPower(p) === 0 && splitPenalty(p, hand, lv) < 500);
     if (!pool.length) pool = plays.filter(p => R.bombPower(p) === 0);
     if (!pool.length) pool = plays;
@@ -282,16 +355,20 @@
     return score;
   }
 
-  function shouldBomb(play, hand, st, seat, cache) {
+  function shouldBomb(play, hand, st, seat, cache, inventory, pressure) {
     const target = st.target;
     const rest = removePlay(hand, play);
     if (!rest.length || finishDistance(rest, st.levelRanks, cache) <= 1) return true;
     if (st.finished.indexOf(target.seat) >= 0) return true; // 阻止对手末手接风
-    if (st.counts[target.seat] <= 2 || minEnemyCount(st, seat) <= 2) return true;
-    if (hand.length <= 7) return true;
+    if (hasFinishedEnemy(st, seat)) return true;
+    if (st.counts[target.seat] <= 3 || minEnemyCount(st, seat) <= 2) return true;
+    if (st.counts[target.seat] <= 5 && hand.length <= 8) return true;
+    if (inventory.groups >= 2 && hand.length <= 10 && minEnemyCount(st, seat) <= 4) return true;
+    if (inventory.ratio >= .6 && hand.length <= 9 && pressure >= 6) return true;
+    if (hand.length <= 6) return true;
     const partner = E.partnerOf(seat);
-    if (st.finished.indexOf(partner) >= 0 && hand.length <= 10) return true;
-    if (R.bombPower(target.pattern) > 0 && minEnemyCount(st, seat) <= 5) return true;
+    if (st.finished.indexOf(partner) >= 0 && hand.length <= 8) return true;
+    if (R.bombPower(target.pattern) > 0 && minEnemyCount(st, seat) <= 4) return true;
     return false;
   }
 
@@ -299,7 +376,10 @@
     const lv = st.levelRanks;
     const target = st.target;
     const partner = E.partnerOf(seat);
-    const plays = R.findPlays(hand, lv).filter(p => R.canBeat(p, target.pattern));
+    const allPlays = R.findPlays(hand, lv);
+    const inventory = bombInventory(allPlays, hand);
+    const pressure = tablePressure(st, seat, hand, inventory);
+    const plays = allPlays.filter(p => R.canBeat(p, target.pattern));
     if (!plays.length) return null;
 
     const goOut = plays.filter(p => p.len === hand.length)
@@ -309,10 +389,10 @@
     // 不压队友的牌,包括队友刚出完等待接风的末手。
     if (target.seat === partner) return null;
 
-    const urgent = st.counts[target.seat] <= 2 || minEnemyCount(st, seat) <= 2 || st.finished.indexOf(target.seat) >= 0;
+    const urgent = hasFinishedEnemy(st, seat) || st.counts[target.seat] <= 3 || minEnemyCount(st, seat) <= 2 || st.finished.indexOf(target.seat) >= 0;
     const nonBomb = plays.filter(p => R.bombPower(p) === 0);
     const safe = nonBomb.filter(p => splitPenalty(p, hand, lv) < 500);
-    let pool = safe.length ? safe : nonBomb;
+    let pool = safe;
 
     if (pool.length) {
       pool.sort((a, b) => followScore(a, hand, st, seat, memory, cache, urgent) - followScore(b, hand, st, seat, memory, cache, urgent));
@@ -322,10 +402,17 @@
       return pick;
     }
 
-    const bombs = plays.filter(p => R.bombPower(p) > 0)
+    const bombs = inventory.bombs.filter(p => R.canBeat(p, target.pattern))
       .sort((a, b) => followScore(a, hand, st, seat, memory, cache, urgent) - followScore(b, hand, st, seat, memory, cache, urgent));
-    if (!bombs.length || !shouldBomb(bombs[0], hand, st, seat, cache)) return null;
-    return bombs[0];
+    if (bombs.length && shouldBomb(bombs[0], hand, st, seat, cache, inventory, pressure)) return bombs[0];
+
+    // 没到出炸时机时,仍可在真正紧急的情况下拆炸拦截;平时继续保留。
+    pool = nonBomb;
+    if (!pool.length) return null;
+    pool.sort((a, b) => followScore(a, hand, st, seat, memory, cache, urgent) - followScore(b, hand, st, seat, memory, cache, urgent));
+    const pick = pool[0];
+    if (splitPenalty(pick, hand, lv) >= 800 && !urgent) return null;
+    return pick;
   }
 
   function decide(engine, seat, rng) { // rng 保留兼容旧调用;新策略本身确定性更强

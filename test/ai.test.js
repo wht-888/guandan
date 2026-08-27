@@ -62,6 +62,27 @@ function singleTarget(rank, seat = 1) {
   ok(action.kind === 'play' && action.cardIds.length === 4, '对手剩一张时应使用炸弹拦截');
 }
 
+// 两组炸弹已经占据大部分手牌且对手进入收尾时,拿到牌权应主动出炸减负。
+{
+  const bomb3 = [card(3, 0), card(3, 1), card(3, 2), card(3, 3)];
+  const bomb8 = [card(8, 0), card(8, 1), card(8, 2), card(8, 3)];
+  const hand = bomb3.concat(bomb8, [card(10), card(12)]);
+  const st = baseState(hand, { counts: [10, 4, 6, 5] });
+  const action = AI.decide(fakeEngine(st), 0);
+  ok(action.kind === 'play' && action.type === 'bomb', '炸弹占手且对手收尾时应主动领炸');
+}
+
+// 一名对手已经出完时不能继续抱炸,必须阻断另一名对手完成双下。
+{
+  const bomb = [card(6, 0), card(6, 1), card(6, 2), card(6, 3)];
+  const hand = bomb.concat([card(3), card(4), card(8), card(10), card(12)]);
+  const targetCard = card(14);
+  const target = { seat: 3, cards: [targetCard], pattern: { type: 'pair', key: 14, len: 2, cards: [targetCard], wildUsed: 0 } };
+  const st = baseState(hand, { target, counts: [9, 0, 6, 5], finished: [1] });
+  const action = AI.decide(fakeEngine(st), 0);
+  ok(action.kind === 'play' && action.type === 'bomb', '已有对手出完时应立即用炸弹夺权');
+}
+
 // 还贡优先给不破坏组合的孤张,而不是机械地拆最小对子。
 {
   const pair3 = [card(3, 0), card(3, 2)];

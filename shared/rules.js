@@ -241,10 +241,12 @@
         const suits = new Set(pick.map(c => c.suit));
         if (suits.size <= 1) {
           const flushSuit = pick.length ? pick[0].suit : -1;
-          for (let i = 0; i < win.length; i++) {
-            const alternatives = byRank[win[i]] || [];
+          for (const rank of win) {
+            const pickIndex = pick.findIndex(c => c.rank === rank);
+            if (pickIndex < 0) continue; // 该点由逢人配补齐,不占 pick 下标
+            const alternatives = byRank[rank] || [];
             const alt = alternatives.find(c => c.suit !== flushSuit);
-            if (alt) { pick[i] = alt; break; }
+            if (alt) { pick[pickIndex] = alt; break; }
           }
         }
         if (new Set(pick.map(c => c.suit)).size > 1) push('straight', key, pick.concat(wUsed), wUsed.length);

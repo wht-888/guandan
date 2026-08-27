@@ -81,6 +81,14 @@ ok(R.analyze([C(0, 10), C(0, 11), C(0, 12), C(0, 13), C(0, 14)], lv7).some(p => 
 ok(!R.analyze([C(1, 13), C(1, 14), C(1, 15), C(1, 3), C(1, 4)], lv7).some(p => p.type === 'straightflush'), 'KA234同花顺非法');
 ok(R.canBeat({ type: 'straightflush', key: 1, len: 5 }, { type: 'straightflush', key: 0, len: 5 }), '23456同花顺压A2345同花顺');
 
+// 回归:逢人配补顺子时,替换同花色选牌不能因缺位造成数组下标错位。
+{
+  const trickyHand = [C(2, 9), C(2, 11), C(3, 11), C(2, 12), C(2, 13), C(1, 7)];
+  const straightPlays = R.findPlays(trickyHand, [7]).filter(p => p.type === 'straight');
+  ok(straightPlays.length > 0, '同花候选有替代花色时仍可枚举普通顺子');
+  ok(straightPlays.every(p => R.analyze(p.cards, [7]).some(a => a.type === p.type && a.key === p.key)), 'findPlays 枚举的普通顺子必须可被规则引擎识别');
+}
+
 // 回归:最后一手同花顺按炸弹判定,四张炸不能压,三家过牌后由队友接风。
 {
   const { Engine } = require('../shared/engine.js');
