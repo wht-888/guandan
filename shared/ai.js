@@ -18,8 +18,8 @@
     tripleseq: -34, pairseq: -32, straight: -28, fullhouse: -23,
     triple: -10, pair: -4, single: 8
   };
-  const PREVIOUS_BOMB_POLICY = { forceTargetCount: 3, forceEnemyMin: 2, threatTargetCount: 0 };
-  const CURRENT_BOMB_POLICY = { forceTargetCount: 3, forceEnemyMin: 2, threatTargetCount: 6, threatEnemyTotal: 12, threatBombGroups: 2, threatFinishDistance: 2 };
+  const PREVIOUS_BOMB_POLICY = { forceTargetCount: 3, forceEnemyMin: 2, threatTargetCount: 6, threatEnemyTotal: 12, threatBombGroups: 2, threatFinishDistance: 2 };
+  const CURRENT_BOMB_POLICY = { forceTargetCount: 3, forceEnemyMin: 2, threatTargetCount: 6, threatEnemyTotal: 12, threatBombGroups: 2, threatFinishDistance: 2, multiBombTargetCount: 10, multiBombGroups: 2 };
 
   function playAction(play) {
     return { kind: 'play', cardIds: play.cards.map(c => c.id), type: play.type, key: play.key };
@@ -284,6 +284,7 @@
 
   function policyBombThreat(hand, st, seat, inventory, policy) {
     if (st.counts[st.target.seat] <= policy.forceTargetCount || minEnemyCount(st, seat) <= policy.forceEnemyMin) return true;
+    if (policy.multiBombTargetCount && st.counts[st.target.seat] <= policy.multiBombTargetCount && inventory.groups >= policy.multiBombGroups) return true;
     if (!policy.threatTargetCount || st.counts[st.target.seat] > policy.threatTargetCount) return false;
     const enemies = enemySeats(seat).filter(s => st.finished.indexOf(s) < 0);
     const enemyTotal = enemies.reduce((sum, s) => sum + st.counts[s], 0);

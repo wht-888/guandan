@@ -76,6 +76,18 @@ function singleTarget(rank, seat = 1) {
     '炸弹占手且对手收尾时应先出不拆炸的小牌');
 }
 
+// 对手已走到10张以内且自己有两组炸,只能用炸弹压时不应继续捏炸。
+{
+  const bomb4 = [card(4, 0), card(4, 1), card(4, 2), card(4, 3)];
+  const bomb8 = [card(8, 0), card(8, 1), card(8, 2), card(8, 3)];
+  const hand = bomb4.concat(bomb8, [card(3), card(5), card(7)]);
+  const targetCard = card(14);
+  const target = { seat: 1, cards: [targetCard], pattern: { type: 'pair', key: 14, len: 2, cards: [targetCard], wildUsed: 0 } };
+  const st = baseState(hand, { target, counts: [11, 9, 8, 12] });
+  const action = AI.decide(fakeEngine(st), 0);
+  ok(action.kind === 'play' && action.type === 'bomb', '对手剩9张(已进入10张阈值)且手握两组炸时应使用炸弹夺权');
+}
+
 // 一组炸弹加小单时先出小单;对手接牌后再用炸弹收尾。
 {
   const bomb = [card(6, 0), card(6, 1), card(6, 2), card(6, 3)];
