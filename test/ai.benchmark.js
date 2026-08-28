@@ -2,6 +2,20 @@
 const { Engine, teamOf, partnerOf } = require('../shared/engine.js');
 const R = require('../shared/rules.js');
 const NewAI = require('../shared/ai.js');
+const path = require('path');
+const { execFileSync } = require('child_process');
+const NodeModule = require('module');
+
+function loadAIAtRef(ref) {
+  if (!/^[0-9a-zA-Z._/-]+$/.test(ref)) throw new Error('invalid baseline ref: ' + ref);
+  const source = execFileSync('git', ['show', `${ref}:shared/ai.js`], { encoding: 'utf8' });
+  const filename = path.join(__dirname, '../shared/.benchmark-ai-' + ref.replace(/[^\w.-]/g, '_') + '.js');
+  const loaded = new NodeModule(filename, module);
+  loaded.filename = filename;
+  loaded.paths = NodeModule._nodeModulePaths(path.dirname(filename));
+  loaded._compile(source, filename);
+  return loaded.exports;
+}
 
 function legacyDecide(engine, seat, rng) {
   const st = engine.getStateFor(seat), lv = st.levelRanks, hand = st.myHand;
@@ -57,6 +71,22 @@ function seeded(seed) {
   return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
 }
 
+const pairs = Number(process.argv[2] || 50);
+const baselineRef = process.argv[3] || 'legacy';
+const startPair = Number(process.argv[4] || 1);
+const BaselineAI = baselineRef === 'legacy' ? null : loadAIAtRef(baselineRef);
+
+function baselineDecide(engine, seat, rng) {
+  const st = engine.getStateFor(seat);
+  // 历史AI不认识后来新增的手选贡牌协议;这里只做协议适配,不改变其出牌策略。
+  if (st.phase === 'tribute' && (st.tribute.pendingTributes || []).includes(seat)) {
+    const legal = st.myHand.filter(c => !R.isWild(c, st.levelRanks));
+    const best = Math.max.apply(null, legal.map(c => R.orderOf(c.rank, st.levelRanks)));
+    return { kind: 'giveTribute', cardId: legal.find(c => R.orderOf(c.rank, st.levelRanks) === best).id };
+  }
+  return baselineRef === 'legacy' ? legacyDecide(engine, seat, rng) : BaselineAI.decide(engine, seat, rng);
+}
+
 function run(seed, newTeam) {
   const engineRng = seeded(seed), decisionRng = seeded(seed ^ 0x9e3779b9);
   const e = new Engine({ rng: engineRng });
@@ -65,7 +95,7 @@ function run(seed, newTeam) {
   while (!e.over && steps++ < 25000) {
     if (e.phase === 'settle') { e.startHand(); continue; }
     const seat = e.phase === 'tribute' ? ((e.tribute.pendingTributes || [])[0] ?? e.tribute.pendingReturns[0]) : e.current;
-    const brain = teamOf(seat) === newTeam ? NewAI.decide : legacyDecide;
+    const brain = teamOf(seat) === newTeam ? NewAI.decide : baselineDecide;
     const result = e.applyAction(seat, brain(e, seat, decisionRng));
     if (!result.ok) throw new Error(`seed=${seed} seat=${seat}: ${result.error}`);
   }
@@ -73,10 +103,10 @@ function run(seed, newTeam) {
   return { won: e.winnerTeam === newTeam, hands: e.handNo };
 }
 
-const pairs = Number(process.argv[2] || 50);
 let wins = 0, hands = 0;
 const winsByTeam = [0, 0];
-for (let i = 1; i <= pairs; i++) {
+for (let offset = 0; offset < pairs; offset++) {
+  const i = startPair + offset;
   for (let team = 0; team < 2; team++) {
     const result = run(i * 7919, team);
     if (result.won) { wins++; winsByTeam[team]++; }
@@ -84,5 +114,5 @@ for (let i = 1; i <= pairs; i++) {
   }
 }
 const games = pairs * 2;
-console.log(`AI BENCH: 新AI ${wins}/${games} 胜 (${(wins / games * 100).toFixed(1)}%), 队伍0/1=${winsByTeam[0]}/${winsByTeam[1]}, 平均 ${(hands / games).toFixed(1)} 手/场`);
+console.log(`AI BENCH[vs ${baselineRef}]: 新AI ${wins}/${games} 胜 (${(wins / games * 100).toFixed(1)}%), 队伍0/1=${winsByTeam[0]}/${winsByTeam[1]}, 平均 ${(hands / games).toFixed(1)} 手/场`);
 if (wins / games < .5) process.exitCode = 1;

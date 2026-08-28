@@ -212,6 +212,7 @@
     for (const p of best.values()) for (const c of p.cards) ids.add(c.id);
     return {
       bombs: Array.from(best.values()),
+      ids,
       groups: best.size,
       cards: ids.size,
       ratio: hand.length ? ids.size / hand.length : 0
@@ -262,6 +263,21 @@
     if (inventory.groups >= 2 && hand.length <= 10 && minEnemyCount(st, seat) <= 4) return true;
     if (inventory.ratio >= .6 && hand.length <= 9 && minEnemyCount(st, seat) <= 5) return true;
     return false;
+  }
+
+  function preBombShedScore(play) {
+    return play.key * 10 - play.len * 3 + (play.wildUsed || 0) * 120;
+  }
+
+  /** 通常先出不碰炸的小牌,等对手接牌后再炸回;仅阻止立即出完时炸弹先行。 */
+  function shouldShedBeforeBomb(shed, bomb, hand, st, seat, cache) {
+    if (!shed) return false;
+    const afterBomb = removePlay(hand, bomb);
+    const bombLeavesOnePlay = finishDistance(afterBomb, st.levelRanks, cache) <= 1;
+    const enemyMin = minEnemyCount(st, seat);
+    if (bombLeavesOnePlay && shed.type === 'single' && enemyMin <= 1) return false;
+    if (bombLeavesOnePlay && hasFinishedEnemy(st, seat) && enemyMin <= shed.len) return false;
+    return true;
   }
 
   function chooseReturn(hand, lv) {
@@ -333,16 +349,23 @@
       else feedType = 'single';
     }
 
-    // 炸弹占据大量手牌或牌桌已进入高压收尾时,主动出最合适的炸弹减负并夺权。
+    let pool = plays.filter(p => R.bombPower(p) === 0 && splitPenalty(p, hand, lv) < 500);
+    if (!pool.length) pool = plays.filter(p => R.bombPower(p) === 0);
+
+    // 炸弹占手或牌桌进入高压收尾时准备使用,但有安全小牌时先出小牌、再炸回牌权。
     const inventory = bombInventory(plays, hand);
     const pressure = tablePressure(st, seat, hand, inventory);
     if (!feedType && inventory.bombs.length) {
       const bombs = inventory.bombs.slice().sort((a, b) => bombReleaseScore(a, hand, lv, cache) - bombReleaseScore(b, hand, lv, cache));
-      if (shouldLeadBomb(bombs[0], hand, st, seat, cache, inventory, pressure)) return bombs[0];
+      if (shouldLeadBomb(bombs[0], hand, st, seat, cache, inventory, pressure)) {
+        const shed = pool
+          .filter(p => p.cards.every(c => !inventory.ids.has(c.id)))
+          .sort((a, b) => preBombShedScore(a) - preBombShedScore(b))[0];
+        if (shouldShedBeforeBomb(shed, bombs[0], hand, st, seat, cache)) return shed;
+        return bombs[0];
+      }
     }
 
-    let pool = plays.filter(p => R.bombPower(p) === 0 && splitPenalty(p, hand, lv) < 500);
-    if (!pool.length) pool = plays.filter(p => R.bombPower(p) === 0);
     if (!pool.length) pool = plays;
     pool.sort((a, b) => leadScore(a, hand, st, seat, memory, cache, feedType) - leadScore(b, hand, st, seat, memory, cache, feedType));
     return pool[0];

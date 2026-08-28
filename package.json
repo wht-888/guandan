@@ -7,6 +7,7 @@
     "start": "node server/index.js",
     "test": "node test/rules.test.js && node test/engine.test.js && node test/ai.test.js && node test/arrange.test.js && node test/tribute.test.js && node test/simulate.js 30",
     "bench:ai": "node test/ai.benchmark.js 50",
+    "bench:ai:previous": "node test/ai.benchmark.js 200 e78f28a",
     "bench:ai:bombs": "node test/ai.bomb-benchmark.js 50",
     "test:ui": "node test/ui.smoke.js",
     "test:e2e": "PORT=18099 AI_DELAY_MS=30 node server/index.js & pid=$!; sleep 1; node test/e2e.js; code=$?; kill $pid; exit $code"

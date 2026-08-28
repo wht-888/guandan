@@ -62,14 +62,36 @@ function singleTarget(rank, seat = 1) {
   ok(action.kind === 'play' && action.cardIds.length === 4, '对手剩一张时应使用炸弹拦截');
 }
 
-// 两组炸弹已经占据大部分手牌且对手进入收尾时,拿到牌权应主动出炸减负。
+// 两组炸弹占据大部分手牌时仍应先处理小牌,把炸弹留作后手夺权。
 {
   const bomb3 = [card(3, 0), card(3, 1), card(3, 2), card(3, 3)];
   const bomb8 = [card(8, 0), card(8, 1), card(8, 2), card(8, 3)];
   const hand = bomb3.concat(bomb8, [card(10), card(12)]);
   const st = baseState(hand, { counts: [10, 4, 6, 5] });
   const action = AI.decide(fakeEngine(st), 0);
-  ok(action.kind === 'play' && action.type === 'bomb', '炸弹占手且对手收尾时应主动领炸');
+  ok(action.kind === 'play' && R.bombPower({ type: action.type, key: 0, len: action.cardIds.length }) === 0,
+    '炸弹占手且对手收尾时应先出不拆炸的小牌');
+}
+
+// 一组炸弹加小单时先出小单;对手接牌后再用炸弹收尾。
+{
+  const bomb = [card(6, 0), card(6, 1), card(6, 2), card(6, 3)];
+  const low = card(3);
+  const leadState = baseState(bomb.concat([low]), { counts: [5, 6, 7, 7] });
+  const lead = AI.decide(fakeEngine(leadState), 0);
+  ok(lead.kind === 'play' && lead.cardIds.length === 1 && lead.cardIds[0] === low.id, '炸弹加小单应先出小单');
+  const finishState = baseState(bomb, { target: singleTarget(14), counts: [4, 5, 7, 7] });
+  const finish = AI.decide(fakeEngine(finishState), 0);
+  ok(finish.kind === 'play' && finish.type === 'bomb' && finish.cardIds.length === 4, '小单被接后应炸回并出完');
+}
+
+// 一组炸弹加小对时同样先出小对,不应先炸再把对子送出。
+{
+  const bomb = [card(9, 0), card(9, 1), card(9, 2), card(9, 3)];
+  const pair3 = [card(3, 0), card(3, 2)];
+  const st = baseState(bomb.concat(pair3), { counts: [6, 6, 7, 7] });
+  const action = AI.decide(fakeEngine(st), 0);
+  ok(action.kind === 'play' && action.type === 'pair' && pair3.every(c => action.cardIds.includes(c.id)), '炸弹加小对应先出小对');
 }
 
 // 一名对手已经出完时不能继续抱炸,必须阻断另一名对手完成双下。
