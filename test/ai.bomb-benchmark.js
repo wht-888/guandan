@@ -50,7 +50,7 @@ for (let m = 1; m <= matches; m++) {
       if (!e.over) e.startHand();
       continue;
     }
-    const seat = e.phase === 'tribute' ? e.tribute.pendingReturns[0] : e.current;
+    const seat = e.phase === 'tribute' ? ((e.tribute.pendingTributes || [])[0] ?? e.tribute.pendingReturns[0]) : e.current;
     const action = AI.decide(e, seat, rng);
     const result = e.applyAction(seat, action);
     if (!result.ok) {

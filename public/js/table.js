@@ -36,9 +36,11 @@ const Table = (() => {
     $('btn-reset').onclick = () => { selected.clear(); hintIdx = -1; refreshHandSelection(); Sound.click(); };
     $('btn-return-ok').onclick = () => {
       if (selected.size !== 1) return;
+      const mode = myTributeMode();
+      if (!mode) return;
       const cardId = [...selected][0];
       Sound.click();
-      if (onAction) onAction({ kind: 'returnTribute', cardId });
+      if (onAction) onAction({ kind: mode === 'give' ? 'giveTribute' : 'returnTribute', cardId });
     };
     $('btn-return-cancel').onclick = () => {
       selected.clear();
@@ -74,13 +76,21 @@ const Table = (() => {
   function syncReturnBar() {
     const bar = $('return-bar');
     if (!bar || !state) return;
-    const myTurnReturn = state.phase === 'tribute' && state.tribute && state.tribute.pendingReturns.indexOf(state.mySeat) >= 0;
-    const show = myTurnReturn && selected.size === 1;
+    const mode = myTributeMode();
+    const show = !!mode && selected.size === 1;
     bar.classList.toggle('hidden', !show);
     if (show) {
       const c = state.myHand.find(x => x.id === [...selected][0]);
-      $('return-tip').textContent = '还贡 ' + R.cardText(c) + ' ?';
+      $('return-tip').textContent = (mode === 'give' ? '进贡 ' : '还贡 ') + R.cardText(c) + ' ?';
+      $('btn-return-ok').textContent = mode === 'give' ? '确认进贡' : '确认还贡';
     }
+  }
+
+  function myTributeMode() {
+    if (!state || state.phase !== 'tribute' || !state.tribute) return null;
+    if ((state.tribute.pendingTributes || []).indexOf(state.mySeat) >= 0) return 'give';
+    if ((state.tribute.pendingReturns || []).indexOf(state.mySeat) >= 0) return 'return';
+    return null;
   }
 
   function syncViewBtn() {
@@ -148,7 +158,7 @@ const Table = (() => {
     if (!t) return '';
     const out = [];
     for (const pr of t.pairs || []) {
-      if (pr.receiver === seat) out.push(pubBadge(pr.card, '贡'));
+      if (pr.receiver === seat && pr.card) out.push(pubBadge(pr.card, '贡'));
       if (pr.giver === seat && pr.returned) out.push(pubBadge(pr.returned, '还'));
     }
     if (t.kangong && t.jokerHolders) {
@@ -232,9 +242,22 @@ const Table = (() => {
     });
   }
 
-  function onCardClick(el, c, myTurnReturn) {
+  function onCardClick(el, c, tributeMode) {
     return () => {
-      if (myTurnReturn) {
+      if (tributeMode === 'give') {
+        const legal = state.myHand.filter(x => !R.isWild(x, state.levelRanks));
+        const best = Math.max.apply(null, legal.map(x => R.orderOf(x.rank, state.levelRanks)));
+        if (R.isWild(c, state.levelRanks) || R.orderOf(c.rank, state.levelRanks) !== best) {
+          toast('进贡必须选择手中最大的非逢人配牌'); return;
+        }
+        Sound.select();
+        if (selected.has(c.id)) selected.delete(c.id);
+        else { selected.clear(); selected.add(c.id); }
+        refreshHandSelection();
+        syncReturnBar();
+        return;
+      }
+      if (tributeMode === 'return') {
         const face = c.rank === 15 ? 2 : c.rank;
         if (c.suit === 4 || face > 10 || R.isWild(c, state.levelRanks)) { toast('还贡必须是不大于10的普通牌'); return; }
         Sound.select();
@@ -255,7 +278,7 @@ const Table = (() => {
     const box = $('my-hand');
     box.innerHTML = '';
     box.className = viewMode === 'grouped' ? 'grouped' : '';
-    const myTurnReturn = state.phase === 'tribute' && state.tribute && state.tribute.pendingReturns.indexOf(state.mySeat) >= 0;
+    const tributeMode = myTributeMode();
     // 应用组牌顺序(仅本局有效)
     let cards = state.myHand;
     let breaks = null, labels = null;
@@ -272,7 +295,7 @@ const Table = (() => {
 
     const mkEl = c => {
       const el = cardEl(c, false);
-      const activate = onCardClick(el, c, myTurnReturn);
+      const activate = onCardClick(el, c, tributeMode);
       el.setAttribute('role', 'button');
       el.setAttribute('aria-pressed', 'false');
       el.tabIndex = 0;
@@ -364,9 +387,13 @@ const Table = (() => {
     if (state.phase !== 'tribute' || !state.tribute) { b.classList.add('hidden'); return; }
     b.classList.remove('hidden');
     const t = state.tribute;
-    const lines = t.pairs.map(p => `${seatName(p.giver)} 进贡 ${R.cardText(p.card)} 给 ${seatName(p.receiver)}`);
-    if (t.pendingReturns.indexOf(state.mySeat) >= 0) lines.push('<b>👆 点选一张 ≤10 的牌, 再点「确认还贡」</b>');
-    else if (t.pendingReturns.length) lines.push(`等待 ${t.pendingReturns.map(seatName).join('、')} 还贡…`);
+    const lines = t.pairs.filter(p => p.card).map(p => `${seatName(p.giver)} 进贡 ${R.cardText(p.card)} 给 ${seatName(p.receiver)}`);
+    const pendingTributes = t.pendingTributes || [];
+    const pendingReturns = t.pendingReturns || [];
+    if (pendingTributes.indexOf(state.mySeat) >= 0) lines.push('<b>👆 请选择最大牌的花色,再点「确认进贡」</b>');
+    else if (pendingTributes.length) lines.push(`等待 ${pendingTributes.map(seatName).join('、')} 选择贡牌花色…`);
+    else if (pendingReturns.indexOf(state.mySeat) >= 0) lines.push('<b>👆 点选一张 ≤10 的牌, 再点「确认还贡」</b>');
+    else if (pendingReturns.length) lines.push(`等待 ${pendingReturns.map(seatName).join('、')} 还贡…`);
     b.innerHTML = lines.join('<br>');
   }
 
@@ -481,7 +508,7 @@ const Table = (() => {
       candidates.sort((a, b) => (R.bombPower(a) - R.bombPower(b)) || (b.key - a.key));
     }
     Sound.click();
-    if (onAction) onAction({ kind: 'play', cardIds: cards.map(c => c.id), type: candidates[0].type });
+    if (onAction) onAction({ kind: 'play', cardIds: cards.map(c => c.id), type: candidates[0].type, key: candidates[0].key });
   }
 
   return { setPlayers, resetSession, bind, render, toast, banner };

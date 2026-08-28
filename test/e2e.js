@@ -48,7 +48,7 @@ function maybeAct(c) {
     return;
   }
   const fakeEngine = { getStateFor: () => st };
-  if (st.phase === 'tribute' && st.tribute.pendingReturns.includes(st.mySeat)) {
+  if (st.phase === 'tribute' && ((st.tribute.pendingTributes || []).includes(st.mySeat) || st.tribute.pendingReturns.includes(st.mySeat))) {
     setTimeout(() => c.ws.send(JSON.stringify({ t: 'action', action: AI.decide(fakeEngine, st.mySeat) })), 150);
     return;
   }

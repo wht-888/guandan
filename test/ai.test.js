@@ -92,6 +92,18 @@ function singleTarget(rank, seat = 1) {
   ok(action.kind === 'returnTribute' && action.cardId === single4.id, '还贡应保留3对子并给出孤张4');
 }
 
+// AI需要进贡同点多花色级牌时,选择对同花结构破坏更小的花色。
+{
+  const spadeLevel = card(5, 0), clubLevel = card(5, 3);
+  const hand = [spadeLevel, clubLevel, card(5, 1), card(3, 0), card(4, 0)]; // ♥5为配
+  const st = baseState(hand, {
+    phase: 'tribute', tribute: { pairs: [{ giver: 0, receiver: 3 }], pendingTributes: [0], pendingReturns: [] }
+  });
+  st.levelRanks = [5]; st.curLevel = 5;
+  const action = AI.decide(fakeEngine(st), 0);
+  ok(action.kind === 'giveTribute' && action.cardId === clubLevel.id, 'AI应选择同花结构较弱的♣5进贡');
+}
+
 // 队友只剩一张时主动领单张喂牌,不抢着甩长牌型。
 {
   const hand = [card(3), card(4), card(5), card(6), card(7), card(10), card(12)];

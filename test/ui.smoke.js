@@ -57,15 +57,16 @@ const { JSDOM } = require('jsdom');
   while (!vis($('modal-settle'))) {
     if (Date.now() - t0 > 60000) throw new Error('超时未打完一手');
     await sleep(2);
-    // 需要我还贡: 点选合法牌 -> 确认还贡(两步)
-    if (vis($('tribute-banner')) && $('tribute-banner').innerHTML.includes('确认还贡')) {
+    // 需要我进贡/还贡: 点选合法牌 -> 二步确认
+    if (vis($('tribute-banner')) && ($('tribute-banner').innerHTML.includes('确认还贡') || $('tribute-banner').innerHTML.includes('确认进贡'))) {
+      const modeText = $('tribute-banner').innerHTML.includes('确认进贡') ? '确认进贡' : '确认还贡';
       for (const el of [...$('my-hand').querySelectorAll('.card')]) {
         el.click();
         await sleep(2);
         if (vis($('return-bar'))) {
           $('btn-return-ok').click();
           await sleep(2);
-          if (!$('tribute-banner').innerHTML.includes('确认还贡')) { tributes++; }
+          if (!$('tribute-banner').innerHTML.includes(modeText)) { tributes++; }
           break;
         }
       }

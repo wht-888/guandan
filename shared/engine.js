@@ -87,36 +87,73 @@
         this.lastEvent = { kind: 'kangong', jokerHolders };
         return;
       }
-      // 进贡: 自动交出最大牌(不含逢人配)
-      const done = [];
-      for (const pr of pairs) {
-        const hand = this.hands[pr.giver];
-        let best = null;
-        for (const c of hand) {
-          if (R.isWild(c, lv)) continue;
-          if (!best || R.orderOf(c.rank, lv) > R.orderOf(best.rank, lv)) best = c;
-        }
-        hand.splice(hand.indexOf(best), 1);
-        this.hands[pr.receiver].push(best);
-        R.sortHand(this.hands[pr.receiver], lv);
-        done.push({ giver: pr.giver, receiver: pr.receiver, card: best });
-      }
       this.tribute = {
-        pairs: done, kangong: false, doubleDown,
-        pendingReturns: done.map(d => d.receiver)
+        pairs: pairs.map(pr => ({ giver: pr.giver, receiver: pr.receiver })),
+        kangong: false, doubleDown, pendingTributes: [], pendingReturns: []
       };
       this.phase = 'tribute';
-      this.lastEvent = { kind: 'tribute', pairs: done };
+      // 最大牌为王或只有一种花色时无需选择;同点最大普通牌有多个花色时由进贡方手选。
+      for (const pr of this.tribute.pairs) {
+        const choices = this.tributeChoices(pr.giver);
+        const suits = new Set(choices.map(c => c.suit));
+        if (choices[0].suit === 4 || suits.size <= 1) this.moveTributeCard(pr, choices[0]);
+        else this.tribute.pendingTributes.push(pr.giver);
+      }
+      if (this.tribute.pendingTributes.length) {
+        this.lastEvent = { kind: 'tributeSelect', pendingTributes: this.tribute.pendingTributes.slice() };
+      } else this.finishTributeSelection();
     }
 
-    /** action: {kind:'play',cardIds:[...],type?} | {kind:'pass'} | {kind:'returnTribute',cardId} */
+    tributeChoices(seat) {
+      const lv = this.levelRanks();
+      const legal = this.hands[seat].filter(c => !R.isWild(c, lv));
+      let best = -1;
+      for (const c of legal) best = Math.max(best, R.orderOf(c.rank, lv));
+      return legal.filter(c => R.orderOf(c.rank, lv) === best);
+    }
+
+    moveTributeCard(pair, card) {
+      const lv = this.levelRanks();
+      const hand = this.hands[pair.giver];
+      hand.splice(hand.indexOf(card), 1);
+      this.hands[pair.receiver].push(card);
+      R.sortHand(this.hands[pair.receiver], lv);
+      pair.card = card;
+    }
+
+    finishTributeSelection() {
+      const t = this.tribute;
+      t.pendingReturns = t.pairs.map(p => p.receiver);
+      this.lastEvent = { kind: 'tribute', pairs: t.pairs };
+    }
+
+    /** action: {kind:'play',cardIds:[...],type?,key?} | {kind:'pass'} | {kind:'giveTribute',cardId} | {kind:'returnTribute',cardId} */
     applyAction(seat, action) {
-      if (this.phase === 'tribute') return this.doReturnTribute(seat, action);
+      if (this.phase === 'tribute') {
+        if ((this.tribute.pendingTributes || []).indexOf(seat) >= 0 || action.kind === 'giveTribute') return this.doGiveTribute(seat, action);
+        return this.doReturnTribute(seat, action);
+      }
       if (this.phase !== 'play') return { ok: false, error: '当前不能操作' };
       if (seat !== this.current) return { ok: false, error: '还没轮到你' };
       if (action.kind === 'pass') return this.doPass(seat);
       if (action.kind === 'play') return this.doPlay(seat, action);
       return { ok: false, error: '未知操作' };
+    }
+
+    doGiveTribute(seat, action) {
+      const t = this.tribute;
+      if (!t || (t.pendingTributes || []).indexOf(seat) < 0) return { ok: false, error: '不需要你选择贡牌' };
+      if (action.kind !== 'giveTribute') return { ok: false, error: '请选择贡牌花色' };
+      const card = this.hands[seat].find(c => c.id === action.cardId);
+      if (!card) return { ok: false, error: '没有这张牌' };
+      const choices = this.tributeChoices(seat);
+      if (!choices.some(c => c.id === card.id)) return { ok: false, error: '进贡必须选择手中最大的非逢人配牌' };
+      const pair = t.pairs.find(p => p.giver === seat);
+      this.moveTributeCard(pair, card);
+      t.pendingTributes.splice(t.pendingTributes.indexOf(seat), 1);
+      this.lastEvent = { kind: 'giveTribute', from: seat, to: pair.receiver, card };
+      if (t.pendingTributes.length === 0) this.finishTributeSelection();
+      return { ok: true };
     }
 
     doReturnTribute(seat, action) {
@@ -189,13 +226,14 @@
       if (!cards.length) return { ok: false, error: '请选择要出的牌' };
       let candidates = R.analyze(cards, lv);
       if (action.type) candidates = candidates.filter(p => p.type === action.type);
+      if (action.key !== undefined && action.key !== null) candidates = candidates.filter(p => p.key === action.key);
       if (!candidates.length) return { ok: false, error: '所选牌不构成合法牌型' };
       if (this.target) {
         candidates = candidates.filter(p => R.canBeat(p, this.target.pattern));
         if (!candidates.length) return { ok: false, error: '所选牌压不过上家' };
       }
-      // 多种解释时优先非炸弹, 其次 key 最小
-      candidates.sort((a, b) => (R.bombPower(a) - R.bombPower(b)) || (a.key - b.key));
+      // 旧客户端未传 key 时,同牌型采用最强解释,避免逢人配三带二被降格。
+      candidates.sort((a, b) => (R.bombPower(a) - R.bombPower(b)) || (b.key - a.key));
       const pattern = candidates[0];
       for (const c of cards) hand.splice(hand.indexOf(c), 1);
       const play = { pattern, cards, seat };

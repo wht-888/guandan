@@ -20,7 +20,7 @@
   };
 
   function playAction(play) {
-    return { kind: 'play', cardIds: play.cards.map(c => c.id), type: play.type };
+    return { kind: 'play', cardIds: play.cards.map(c => c.id), type: play.type, key: play.key };
   }
 
   function removePlay(hand, play) {
@@ -280,6 +280,19 @@
     return { kind: 'returnTribute', cardId: candidates[0].id };
   }
 
+  function chooseTribute(hand, lv) {
+    const legal = hand.filter(c => !R.isWild(c, lv));
+    const best = Math.max.apply(null, legal.map(c => R.orderOf(c.rank, lv)));
+    const candidates = legal.filter(c => R.orderOf(c.rank, lv) === best);
+    // 同点最大牌由AI代选时,优先交出同花结构最弱的花色。
+    candidates.sort((a, b) => {
+      const suitA = hand.filter(c => c.suit === a.suit && !R.isWild(c, lv)).length;
+      const suitB = hand.filter(c => c.suit === b.suit && !R.isWild(c, lv)).length;
+      return suitA - suitB || a.suit - b.suit || a.deck - b.deck;
+    });
+    return { kind: 'giveTribute', cardId: candidates[0].id };
+  }
+
   function leadScore(play, hand, st, seat, memory, cache, feedType) {
     const lv = st.levelRanks;
     const rest = removePlay(hand, play);
@@ -420,7 +433,10 @@
     const lv = st.levelRanks;
     const hand = st.myHand;
 
-    if (st.phase === 'tribute') return chooseReturn(hand, lv);
+    if (st.phase === 'tribute') {
+      if (st.tribute && (st.tribute.pendingTributes || []).indexOf(seat) >= 0) return chooseTribute(hand, lv);
+      return chooseReturn(hand, lv);
+    }
 
     const memory = observe(engine, st);
     const cache = new Map();

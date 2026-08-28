@@ -18,6 +18,28 @@ const { JSDOM } = require('jsdom');
   window.Table.bind(a => { captured = a; }, () => {});
   window.Table.setPlayers([{ name: '我', avatar: '😎' }, { name: '阿汪', avatar: '🐶' }, { name: '喵喵', avatar: '🐱' }, { name: '熊熊', avatar: '🐻' }]);
   const C = (id, s, r) => ({ id, suit: s, rank: r, deck: 0 });
+  let n = 0;
+  const ok = (c, m) => { n++; if (!c) { console.error('FAIL:', m); process.exit(1); } };
+
+  // 进贡最大牌为同点多花色级牌:低牌不可选,玩家可选择具体花色并确认。
+  window.Table.render({
+    phase: 'tribute', handNo: 2, levels: [5, 2], curLevel: 5, failA: [0, 0], over: false, winnerTeam: null,
+    levelRanks: [5], mySeat: 0,
+    myHand: [C(11, 0, 5), C(12, 3, 5), C(13, 1, 5), C(14, 2, 4)], counts: [4, 27, 27, 27], current: -1, target: null,
+    lastPlays: [null, null, null, null], finished: [],
+    tribute: { pairs: [{ giver: 0, receiver: 3 }], pendingTributes: [0], pendingReturns: [], kangong: false },
+    settle: null, lastEvent: null
+  });
+  const giveCards = [...$('my-hand').querySelectorAll('.card')];
+  giveCards.find(el => Number(el.dataset.id) === 14).click();
+  ok(!vis($('return-bar')), '进贡不能选择低于最大牌的♦4');
+  giveCards.find(el => Number(el.dataset.id) === 12).click();
+  ok(vis($('return-bar')) && $('return-tip').textContent.includes('♣5'), '可选择具体花色♣5进贡');
+  ok($('btn-return-ok').textContent === '确认进贡', '进贡确认按钮文案正确');
+  $('btn-return-ok').click();
+  ok(captured && captured.kind === 'giveTribute' && captured.cardId === 12, '确认后发送所选花色的进贡动作');
+  captured = null;
+
   const myHand = [C(1, 0, 15), C(2, 0, 13)]; // ♠2(可还) ♠K(不可还)
   window.Table.render({
     phase: 'tribute', handNo: 2, levels: [3, 2], curLevel: 3, failA: [0, 0], over: false, winnerTeam: null,
@@ -27,8 +49,6 @@ const { JSDOM } = require('jsdom');
     settle: null, lastEvent: null
   });
   const cards = [...$('my-hand').querySelectorAll('.card')];
-  let n = 0;
-  const ok = (c, m) => { n++; if (!c) { console.error('FAIL:', m); process.exit(1); } };
 
   // 点非法牌(K): 不选中不发送
   cards[1].click();
@@ -65,6 +85,19 @@ const { JSDOM } = require('jsdom');
     settle: null, lastEvent: null
   });
   ok(!vis($('return-bar')), '分组视图下确认条同样消失');
+
+  // 逢人配三带二必须把具体key传给引擎,不能只发送fullhouse类型。
+  captured = null;
+  const ambiguous = [C(21, 1, 15), C(22, 0, 14), C(23, 3, 14), C(24, 0, 7), C(25, 3, 7)];
+  window.Table.render({
+    phase: 'play', handNo: 3, levels: [2, 2], curLevel: 2, failA: [0, 0], over: false, winnerTeam: null,
+    levelRanks: [15], mySeat: 0, myHand: ambiguous, counts: [5, 20, 18, 19], current: 0, target: null,
+    lastPlays: [null, null, null, null], finished: [], tribute: null, settle: null, lastEvent: null
+  });
+  for (const el of $('my-hand').querySelectorAll('.card')) el.click();
+  $('btn-play').click();
+  ok(captured && captured.kind === 'play' && captured.type === 'fullhouse' && captured.key === 14,
+    '2(配)+AA+77出牌动作必须携带三A的key');
   console.log(`OK: 还贡两步确认 ${n} 项全部通过`);
   process.exit(0);
 })().catch(e => { console.error('FAIL:', e.message); process.exit(1); });

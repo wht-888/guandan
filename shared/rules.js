@@ -115,6 +115,13 @@
       trySeq(normals, w, lv, add, 3, 2, 'pairseq');
       trySeq(normals, w, lv, add, 2, 3, 'tripleseq');
     }
+    // 同一组牌存在多个三带二解释时固定取三张点数更大的解释。
+    // 例如 2(配)+AA+77 只能解释为三A带对7,避免被三个K错误压过。
+    const fullhouses = out.filter(p => p.type === 'fullhouse');
+    if (fullhouses.length > 1) {
+      const bestKey = Math.max.apply(null, fullhouses.map(p => p.key));
+      return out.filter(p => p.type !== 'fullhouse' || p.key === bestKey);
+    }
     return out;
   }
 

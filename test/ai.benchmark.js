@@ -6,6 +6,11 @@ const NewAI = require('../shared/ai.js');
 function legacyDecide(engine, seat, rng) {
   const st = engine.getStateFor(seat), lv = st.levelRanks, hand = st.myHand;
   if (st.phase === 'tribute') {
+    if ((st.tribute.pendingTributes || []).includes(seat)) {
+      const legal = hand.filter(c => !R.isWild(c, lv));
+      const best = Math.max.apply(null, legal.map(c => R.orderOf(c.rank, lv)));
+      return { kind: 'giveTribute', cardId: legal.find(c => R.orderOf(c.rank, lv) === best).id };
+    }
     const candidates = hand.filter(c => {
       const f = c.rank === 15 ? 2 : c.rank;
       return c.suit !== 4 && f <= 10 && !R.isWild(c, lv);
@@ -59,7 +64,7 @@ function run(seed, newTeam) {
   let steps = 0;
   while (!e.over && steps++ < 25000) {
     if (e.phase === 'settle') { e.startHand(); continue; }
-    const seat = e.phase === 'tribute' ? e.tribute.pendingReturns[0] : e.current;
+    const seat = e.phase === 'tribute' ? ((e.tribute.pendingTributes || [])[0] ?? e.tribute.pendingReturns[0]) : e.current;
     const brain = teamOf(seat) === newTeam ? NewAI.decide : legacyDecide;
     const result = e.applyAction(seat, brain(e, seat, decisionRng));
     if (!result.ok) throw new Error(`seed=${seed} seat=${seat}: ${result.error}`);

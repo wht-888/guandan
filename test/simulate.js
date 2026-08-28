@@ -16,7 +16,7 @@ function runMatch(seed) {
       continue;
     }
     if (e.phase === 'tribute') {
-      const seat = e.tribute.pendingReturns[0];
+      const seat = (e.tribute.pendingTributes || [])[0] ?? e.tribute.pendingReturns[0];
       const res = e.applyAction(seat, AI.decide(e, seat, rng));
       if (!res.ok) throw new Error('tribute fail: ' + res.error);
       continue;

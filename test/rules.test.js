@@ -29,6 +29,10 @@ ok(R.analyze([C(1, 15), C(0, 13), C(1, 13), C(2, 13)], lv2).some(p => p.type ===
 ok(R.analyze([C(1, 15), C(0, 4), C(1, 5), C(2, 6), C(3, 7)], lv2).some(p => p.type === 'straight'), '配补顺子');
 ok(R.analyze([C(1, 15)], lv2)[0].key === 15.5, '配单出=级牌');
 ok(R.analyze([C(1, 15), C(0, 5)], lv2).some(p => p.type === 'pair'), '配+单=对子');
+const wildFullhouse = R.analyze([C(1, 15), C(0, 14), C(3, 14), C(0, 7), C(3, 7)], lv2)
+  .filter(p => p.type === 'fullhouse');
+ok(wildFullhouse.length === 1 && wildFullhouse[0].key === 14, '2(配)+AA+77唯一解释为三A带对7');
+ok(!R.canBeat({ type: 'fullhouse', key: 13, len: 5 }, { type: 'fullhouse', key: 14, len: 5 }), '三个K带一对压不过三个A带一对');
 
 // 顺子多解释: 7-8-9-10+配 可为 7..J
 const p1 = R.analyze([C(1, 15), C(0, 7), C(1, 8), C(2, 9), C(3, 10)], lv2);

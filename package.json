@@ -5,7 +5,7 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "test": "node test/rules.test.js && node test/ai.test.js && node test/arrange.test.js && node test/simulate.js 30",
+    "test": "node test/rules.test.js && node test/engine.test.js && node test/ai.test.js && node test/arrange.test.js && node test/tribute.test.js && node test/simulate.js 30",
     "bench:ai": "node test/ai.benchmark.js 50",
     "bench:ai:bombs": "node test/ai.bomb-benchmark.js 50",
     "test:ui": "node test/ui.smoke.js",

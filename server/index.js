@@ -68,7 +68,7 @@ function stepAI(room) {
   if (!e) return;
   if (e.phase === 'settle' || e.phase === 'over' || e.over) return; // 等待房主下一局
   let seat = -1;
-  if (e.phase === 'tribute') seat = e.tribute.pendingReturns[0];
+  if (e.phase === 'tribute') seat = (e.tribute.pendingTributes || [])[0] ?? e.tribute.pendingReturns[0];
   else if (e.phase === 'play') seat = e.current;
   if (seat < 0) return;
   const occupant = room.seats[seat];
@@ -86,7 +86,7 @@ function maybeStartAI(room) {
   const e = room.engine;
   if (!e || e.phase === 'settle' || e.over) return;
   let seat = -1;
-  if (e.phase === 'tribute') seat = e.tribute.pendingReturns[0];
+  if (e.phase === 'tribute') seat = (e.tribute.pendingTributes || [])[0] ?? e.tribute.pendingReturns[0];
   else if (e.phase === 'play') seat = e.current;
   if (seat >= 0 && !(room.seats[seat] && room.seats[seat].ws)) scheduleAI(room);
 }

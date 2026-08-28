@@ -31,7 +31,7 @@
     clearTimeout(aiTimer);
     if (!engine || engine.phase === 'settle' || engine.over) return;
     let seat = -1;
-    if (engine.phase === 'tribute') seat = engine.tribute.pendingReturns[0];
+    if (engine.phase === 'tribute') seat = (engine.tribute.pendingTributes || [])[0] ?? engine.tribute.pendingReturns[0];
     else if (engine.phase === 'play') seat = engine.current;
     if (seat < 0 || seat === 0) return; // 等待真人
     aiTimer = setTimeout(() => {
