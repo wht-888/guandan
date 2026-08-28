@@ -55,8 +55,11 @@ function singleTarget(rank, seat = 1) {
   const hand = bomb.concat([card(4), card(5), card(6), card(8), card(9)]);
   const targetCard = card(14);
   const target = { seat: 1, cards: [targetCard], pattern: { type: 'pair', key: 14, len: 2, cards: [targetCard], wildUsed: 0 } };
-  const calm = baseState(hand, { target, counts: [9, 6, 7, 7] });
+  const calm = baseState(hand, { target, counts: [9, 9, 7, 10] });
   ok(AI.decide(fakeEngine(calm), 0).kind === 'pass', '无威胁时应保留炸弹');
+  const closingHand = bomb.concat([card(4, 0), card(4, 2), card(5, 0), card(5, 2)]);
+  const sixLeft = baseState(closingHand, { target, counts: [8, 6, 7, 9] });
+  ok(AI.decide(fakeEngine(sixLeft), 0).kind === 'play', '对手剩6张且炸后两手可走完时应果断炸');
   const urgent = baseState(hand, { target, counts: [9, 1, 7, 6] });
   const action = AI.decide(fakeEngine(urgent), 0);
   ok(action.kind === 'play' && action.cardIds.length === 4, '对手剩一张时应使用炸弹拦截');

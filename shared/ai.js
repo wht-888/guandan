@@ -18,6 +18,8 @@
     tripleseq: -34, pairseq: -32, straight: -28, fullhouse: -23,
     triple: -10, pair: -4, single: 8
   };
+  const PREVIOUS_BOMB_POLICY = { forceTargetCount: 3, forceEnemyMin: 2, threatTargetCount: 0 };
+  const CURRENT_BOMB_POLICY = { forceTargetCount: 3, forceEnemyMin: 2, threatTargetCount: 6, threatEnemyTotal: 12, threatBombGroups: 2, threatFinishDistance: 2 };
 
   function playAction(play) {
     return { kind: 'play', cardIds: play.cards.map(c => c.id), type: play.type, key: play.key };
@@ -280,6 +282,14 @@
     return true;
   }
 
+  function policyBombThreat(hand, st, seat, inventory, policy) {
+    if (st.counts[st.target.seat] <= policy.forceTargetCount || minEnemyCount(st, seat) <= policy.forceEnemyMin) return true;
+    if (!policy.threatTargetCount || st.counts[st.target.seat] > policy.threatTargetCount) return false;
+    const enemies = enemySeats(seat).filter(s => st.finished.indexOf(s) < 0);
+    const enemyTotal = enemies.reduce((sum, s) => sum + st.counts[s], 0);
+    return enemyTotal <= policy.threatEnemyTotal || inventory.groups >= policy.threatBombGroups;
+  }
+
   function chooseReturn(hand, lv) {
     const candidates = hand.filter(c => {
       const face = c.rank === 15 ? 2 : c.rank;
@@ -391,13 +401,15 @@
     return score;
   }
 
-  function shouldBomb(play, hand, st, seat, cache, inventory, pressure) {
+  function shouldBomb(play, hand, st, seat, cache, inventory, pressure, policy) {
     const target = st.target;
     const rest = removePlay(hand, play);
     if (!rest.length || finishDistance(rest, st.levelRanks, cache) <= 1) return true;
+    if (policy.threatTargetCount && st.counts[target.seat] <= policy.threatTargetCount &&
+        finishDistance(rest, st.levelRanks, cache) <= policy.threatFinishDistance) return true;
     if (st.finished.indexOf(target.seat) >= 0) return true; // 阻止对手末手接风
     if (hasFinishedEnemy(st, seat)) return true;
-    if (st.counts[target.seat] <= 3 || minEnemyCount(st, seat) <= 2) return true;
+    if (policyBombThreat(hand, st, seat, inventory, policy)) return true;
     if (st.counts[target.seat] <= 5 && hand.length <= 8) return true;
     if (inventory.groups >= 2 && hand.length <= 10 && minEnemyCount(st, seat) <= 4) return true;
     if (inventory.ratio >= .6 && hand.length <= 9 && pressure >= 6) return true;
@@ -408,7 +420,7 @@
     return false;
   }
 
-  function chooseFollow(hand, st, seat, memory, cache) {
+  function chooseFollow(hand, st, seat, memory, cache, policy) {
     const lv = st.levelRanks;
     const target = st.target;
     const partner = E.partnerOf(seat);
@@ -425,7 +437,7 @@
     // 不压队友的牌,包括队友刚出完等待接风的末手。
     if (target.seat === partner) return null;
 
-    const urgent = hasFinishedEnemy(st, seat) || st.counts[target.seat] <= 3 || minEnemyCount(st, seat) <= 2 || st.finished.indexOf(target.seat) >= 0;
+    const urgent = hasFinishedEnemy(st, seat) || policyBombThreat(hand, st, seat, inventory, policy) || st.finished.indexOf(target.seat) >= 0;
     const nonBomb = plays.filter(p => R.bombPower(p) === 0);
     const safe = nonBomb.filter(p => splitPenalty(p, hand, lv) < 500);
     let pool = safe;
@@ -440,7 +452,7 @@
 
     const bombs = inventory.bombs.filter(p => R.canBeat(p, target.pattern))
       .sort((a, b) => followScore(a, hand, st, seat, memory, cache, urgent) - followScore(b, hand, st, seat, memory, cache, urgent));
-    if (bombs.length && shouldBomb(bombs[0], hand, st, seat, cache, inventory, pressure)) return bombs[0];
+    if (bombs.length && shouldBomb(bombs[0], hand, st, seat, cache, inventory, pressure, policy)) return bombs[0];
 
     // 没到出炸时机时,仍可在真正紧急的情况下拆炸拦截;平时继续保留。
     pool = nonBomb;
@@ -451,7 +463,7 @@
     return pick;
   }
 
-  function decide(engine, seat, rng) { // rng 保留兼容旧调用;新策略本身确定性更强
+  function decideWithPolicy(engine, seat, rng, policy) {
     const st = engine.getStateFor(seat);
     const lv = st.levelRanks;
     const hand = st.myHand;
@@ -464,10 +476,17 @@
     const memory = observe(engine, st);
     const cache = new Map();
     const pick = st.target
-      ? chooseFollow(hand, st, seat, memory, cache)
+      ? chooseFollow(hand, st, seat, memory, cache, policy)
       : chooseLead(hand, st, seat, memory, cache);
     return pick ? playAction(pick) : { kind: 'pass' };
   }
 
-  return { decide };
+  function decide(engine, seat, rng) { // rng 保留兼容旧调用;新策略本身确定性更强
+    return decideWithPolicy(engine, seat, rng, CURRENT_BOMB_POLICY);
+  }
+
+  return {
+    decide,
+    _decidePrevious: (engine, seat, rng) => decideWithPolicy(engine, seat, rng, PREVIOUS_BOMB_POLICY)
+  };
 });

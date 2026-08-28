@@ -74,7 +74,7 @@ function seeded(seed) {
 const pairs = Number(process.argv[2] || 50);
 const baselineRef = process.argv[3] || 'legacy';
 const startPair = Number(process.argv[4] || 1);
-const BaselineAI = baselineRef === 'legacy' ? null : loadAIAtRef(baselineRef);
+const BaselineAI = baselineRef === 'legacy' || baselineRef === 'previous' ? null : loadAIAtRef(baselineRef);
 
 function baselineDecide(engine, seat, rng) {
   const st = engine.getStateFor(seat);
@@ -84,7 +84,9 @@ function baselineDecide(engine, seat, rng) {
     const best = Math.max.apply(null, legal.map(c => R.orderOf(c.rank, st.levelRanks)));
     return { kind: 'giveTribute', cardId: legal.find(c => R.orderOf(c.rank, st.levelRanks) === best).id };
   }
-  return baselineRef === 'legacy' ? legacyDecide(engine, seat, rng) : BaselineAI.decide(engine, seat, rng);
+  if (baselineRef === 'legacy') return legacyDecide(engine, seat, rng);
+  if (baselineRef === 'previous') return NewAI._decidePrevious(engine, seat, rng);
+  return BaselineAI.decide(engine, seat, rng);
 }
 
 function run(seed, newTeam) {
