@@ -14,6 +14,8 @@ const Table = (() => {
   let animateDeal = false;
   try { viewMode = localStorage.getItem('gd-view') || 'fan'; } catch (e) {}
   let arranged = null;             // {handNo, ids:[], breaks:Set}
+  let manualGroups = [];           // [{id,handNo,cardIds,type,key,label}]
+  let nextManualGroupId = 1;
 
   function levelName(l, aFail) {
     if (l === 14) return 'A' + ((aFail || 0) + 1);
@@ -28,6 +30,8 @@ const Table = (() => {
     hintList = [];
     hintIdx = -1;
     arranged = null;
+    manualGroups = [];
+    nextManualGroupId = 1;
     lastEventRef = null;
     lastHandKey = null;
   }
@@ -63,6 +67,7 @@ const Table = (() => {
       else { doArrange(); toast('已保留炸弹并按尽量少的手数组牌, 再点一次还原'); }
       syncArrangeBtn(); renderHand();
     };
+    $('btn-pin-group').onclick = () => pinSelectedGroup();
     window.addEventListener('resize', () => {
       if (state) requestAnimationFrame(placeActionBar);
     });
@@ -74,6 +79,66 @@ const Table = (() => {
     if (!b) return;
     b.textContent = arranged ? '↩ 还原' : '✨ 一键组牌';
     b.classList.toggle('on', !!arranged);
+    syncManualGroupBtn();
+  }
+
+  function selectedManualPattern() {
+    if (!state || arranged || state.phase !== 'play' || selected.size < 2) return null;
+    const occupied = new Set(manualGroups.flatMap(g => g.cardIds));
+    if ([...selected].some(id => occupied.has(id))) return null;
+    const cards = state.myHand.filter(c => selected.has(c.id));
+    if (cards.length !== selected.size) return null;
+    const patterns = R.analyze(cards, state.levelRanks);
+    if (!patterns.length) return null;
+    patterns.sort((a, b) => (R.bombPower(b) - R.bombPower(a)) || (b.key - a.key));
+    return patterns[0];
+  }
+
+  function syncManualGroupBtn() {
+    const b = $('btn-pin-group');
+    if (!b) return;
+    b.classList.toggle('hidden', !!arranged);
+    const occupied = new Set(manualGroups.flatMap(g => g.cardIds));
+    b.disabled = !!arranged || !state || state.phase !== 'play' || selected.size < 2 || [...selected].some(id => occupied.has(id));
+  }
+
+  function pinSelectedGroup() {
+    const pattern = selectedManualPattern();
+    if (!pattern) { toast('请选择一个合法且未暂存的牌组'); return; }
+    const cardIds = state.myHand.filter(c => selected.has(c.id)).map(c => c.id);
+    manualGroups.push({
+      id: nextManualGroupId++, handNo: state.handNo, cardIds,
+      type: pattern.type, key: pattern.key, label: R.patternName(pattern)
+    });
+    selected.clear(); hintList = []; hintIdx = -1;
+    Sound.click();
+    renderHand();
+    toast(`已将${R.patternName(pattern)}单独放置`);
+  }
+
+  function restoreManualGroup(groupId) {
+    const group = manualGroups.find(g => g.id === groupId);
+    if (!group) return;
+    for (const id of group.cardIds) selected.delete(id);
+    manualGroups = manualGroups.filter(g => g.id !== groupId);
+    Sound.click();
+    renderHand();
+  }
+
+  function toggleManualGroupSelection(groupId) {
+    const group = manualGroups.find(g => g.id === groupId);
+    if (!group) return;
+    const allSelected = group.cardIds.every(id => selected.has(id));
+    for (const id of group.cardIds) allSelected ? selected.delete(id) : selected.add(id);
+    Sound.select();
+    refreshHandSelection();
+  }
+
+  function reconcileManualGroups() {
+    if (!state) return;
+    const handIds = new Set(state.myHand.map(c => c.id));
+    manualGroups = manualGroups.filter(g =>
+      g.handNo === state.handNo && g.cardIds.every(id => handIds.has(id)));
   }
 
   function syncReturnBar() {
@@ -140,6 +205,7 @@ const Table = (() => {
     const handKey = `${st.handNo}:${st.mySeat}`;
     animateDeal = handKey !== lastHandKey;
     state = st;
+    reconcileManualGroups();
     selected.clear(); hintList = []; hintIdx = -1;
     renderInfo(); renderSeats(); renderPlayed(); renderHand(); placeActionBar(); renderActionBar(); renderTribute(); renderSettle(); syncReturnBar();
     handleEvent(st.lastEvent);
@@ -295,6 +361,14 @@ const Table = (() => {
     } else arranged = null;
     syncArrangeBtn();
 
+    const cardById = new Map(cards.map(c => [c.id, c]));
+    const visibleManualGroups = arranged ? [] : manualGroups.map(g => ({
+      ...g, cards: g.cardIds.map(id => cardById.get(id)).filter(Boolean)
+    }));
+    const manualIds = new Set(visibleManualGroups.flatMap(g => g.cardIds));
+    const regularCards = arranged ? cards : cards.filter(c => !manualIds.has(c.id));
+    if (visibleManualGroups.length) box.classList.add('has-manual');
+
     const dealOrder = new Map(cards.map((c, i) => [c.id, i]));
 
     const mkEl = c => {
@@ -316,43 +390,75 @@ const Table = (() => {
       return el;
     };
 
+    const manualHeader = group => {
+      const header = document.createElement('div');
+      header.className = 'manual-group-header';
+      const selectBtn = document.createElement('button');
+      selectBtn.className = 'manual-group-select';
+      selectBtn.dataset.groupId = group.id;
+      selectBtn.textContent = group.label;
+      selectBtn.title = '整组选中/取消';
+      selectBtn.setAttribute('aria-pressed', 'false');
+      selectBtn.onclick = e => { e.stopPropagation(); toggleManualGroupSelection(group.id); };
+      const restoreBtn = document.createElement('button');
+      restoreBtn.className = 'manual-group-restore';
+      restoreBtn.textContent = '↩';
+      restoreBtn.title = '放回普通手牌';
+      restoreBtn.setAttribute('aria-label', `放回${group.label}`);
+      restoreBtn.onclick = e => { e.stopPropagation(); restoreManualGroup(group.id); };
+      header.append(selectBtn, restoreBtn);
+      return header;
+    };
+
     if (viewMode === 'grouped') {
       // 先收集列: 已组牌按组合分列(带牌型标签), 未组牌按点数分列
       const cols = [];
       if (breaks) {
-        for (const c of cards) {
+        for (const c of regularCards) {
           if (!cols.length || breaks.has(c.id)) cols.push({ label: (labels && labels.get(c.id)) || '', els: [] });
           cols[cols.length - 1].els.push(mkEl(c));
         }
       } else {
         const lv = state.levelRanks;
         const byRank = new Map();
-        for (const c of cards) {
+        for (const c of regularCards) {
           if (!byRank.has(c.rank)) byRank.set(c.rank, []);
           byRank.get(c.rank).push(c);
         }
         const ranks = Array.from(byRank.keys()).sort((a, b) => R.orderOf(b, lv) - R.orderOf(a, lv));
         for (const r of ranks) cols.push({ label: '', els: byRank.get(r).sort((a, b) => a.suit - b.suit).map(mkEl) });
+        for (const group of visibleManualGroups) cols.push({ label: group.label, els: group.cards.map(mkEl), manualGroup: group });
       }
-      for (const { label, els } of cols) {
+      for (const { label, els, manualGroup } of cols) {
         const col = document.createElement('div');
-        col.className = breaks ? 'rank-col combo-col' : 'rank-col';
-        if (breaks) {
+        col.className = manualGroup ? 'rank-col combo-col manual-col' : (breaks ? 'rank-col combo-col' : 'rank-col');
+        if (manualGroup) col.appendChild(manualHeader(manualGroup));
+        else if (breaks) {
           const lb = document.createElement('div');
           lb.className = 'col-label';
           lb.textContent = label;
           col.appendChild(lb);
         }
         box.appendChild(col);
-        stackCards(col, els, !!breaks);
+        stackCards(col, els, !!breaks || !!manualGroup);
       }
       placeActionBar();
       return;
     }
-    for (const c of cards) {
+    for (const c of regularCards) {
       const el = mkEl(c);
       if (breaks && breaks.has(c.id)) el.classList.add('combo-start');
       box.appendChild(el);
+    }
+    for (const group of visibleManualGroups) {
+      const wrap = document.createElement('div');
+      wrap.className = 'manual-card-group';
+      wrap.dataset.groupId = group.id;
+      const groupCards = document.createElement('div');
+      groupCards.className = 'manual-group-cards';
+      for (const c of group.cards) groupCards.appendChild(mkEl(c));
+      wrap.append(manualHeader(group), groupCards);
+      box.appendChild(wrap);
     }
     placeActionBar();
   }
@@ -375,6 +481,13 @@ const Table = (() => {
       el.classList.toggle('selected', isSelected);
       el.setAttribute('aria-pressed', String(isSelected));
     }
+    for (const el of $('my-hand').querySelectorAll('.manual-group-select')) {
+      const group = manualGroups.find(g => g.id === Number(el.dataset.groupId));
+      const on = !!group && group.cardIds.every(id => selected.has(id));
+      el.classList.toggle('on', on);
+      el.setAttribute('aria-pressed', String(on));
+    }
+    syncManualGroupBtn();
   }
 
   function renderActionBar() {
