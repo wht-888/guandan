@@ -21,7 +21,8 @@
       this.rng = opts.rng || Math.random;
       this.levels = [2, 2];       // 双方等级 2..14(14=A)
       this.curLevel = 2;          // 本局所打级数(谁升级打谁的级)
-      this.failA = [0, 0];        // 打A失败次数
+      this.curLevelTeam = null;   // 本副级牌所属队;A1/A2/A3只推进该队
+      this.failA = [0, 0];        // A阶段:0=A1,1=A2,2=A3
       this.handNo = 0;
       this.over = false;
       this.winnerTeam = null;
@@ -45,7 +46,10 @@
 
     startHand() {
       this.handNo++;
-      if (this.prevPlacements) this.curLevel = this.levels[teamOf(this.prevPlacements[0])];
+      if (this.prevPlacements) {
+        this.curLevelTeam = teamOf(this.prevPlacements[0]);
+        this.curLevel = this.levels[this.curLevelTeam];
+      } else this.curLevelTeam = null;
       const lv = this.levelRanks();
       const deck = R.buildDeck();
       for (let i = deck.length - 1; i > 0; i--) {
@@ -273,17 +277,30 @@
       const delta = second === 1 ? 3 : (second === 2 ? 2 : 1);
       const doubleDown = delta === 3;
       let passedA = false;
-      if (this.levels[winTeam] === 14) {
-        if (delta >= 2) { passedA = true; this.over = true; this.winnerTeam = winTeam; }
-        else {
-          this.failA[winTeam]++;
-          if (this.failA[winTeam] >= 3) { this.levels[winTeam] = 2; this.failA[winTeam] = 0; }
+      const activeATeam = this.curLevel === 14 && Number.isInteger(this.curLevelTeam) ? this.curLevelTeam : null;
+      if (activeATeam !== null) {
+        // 只有本副实际打A的队伍能过A或消耗一次A机会。
+        if (winTeam === activeATeam && delta >= 2) {
+          passedA = true; this.over = true; this.winnerTeam = activeATeam;
+        } else {
+          this.failA[activeATeam]++;
+          if (this.failA[activeATeam] >= 3) {
+            this.levels[activeATeam] = 2;
+            this.failA[activeATeam] = 0;
+          }
         }
-      } else {
+      }
+      // 非本副A方的头游队照常升级;已经在A阶段的队保持自己的A1/A2/A3。
+      if (!this.over && winTeam !== activeATeam && this.levels[winTeam] < 14) {
         this.levels[winTeam] = Math.min(14, this.levels[winTeam] + delta);
+        if (this.levels[winTeam] === 14) this.failA[winTeam] = 0;
       }
       this.prevPlacements = placements;
-      this.settle = { placements, winTeam, delta, doubleDown, passedA, levels: this.levels.slice(), over: this.over, winnerTeam: this.winnerTeam };
+      this.settle = {
+        placements, winTeam, delta, doubleDown, passedA,
+        levels: this.levels.slice(), failA: this.failA.slice(),
+        activeATeam, over: this.over, winnerTeam: this.winnerTeam
+      };
       this.phase = 'settle';
       this.lastEvent = { kind: 'settle', settle: this.settle };
       return true;
@@ -295,6 +312,7 @@
       return {
         phase: this.phase, handNo: this.handNo,
         levels: this.levels.slice(), failA: this.failA.slice(), curLevel: this.curLevel,
+        curLevelTeam: this.curLevelTeam,
         over: this.over, winnerTeam: this.winnerTeam,
         levelRanks: lv, mySeat: seat,
         myHand: seat >= 0 ? this.hands[seat] : [],

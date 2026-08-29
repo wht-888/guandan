@@ -15,7 +15,10 @@ const Table = (() => {
   try { viewMode = localStorage.getItem('gd-view') || 'fan'; } catch (e) {}
   let arranged = null;             // {handNo, ids:[], breaks:Set}
 
-  function levelName(l) { return l <= 10 ? String(l) : { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }[l]; }
+  function levelName(l, aFail) {
+    if (l === 14) return 'A' + ((aFail || 0) + 1);
+    return l <= 10 ? String(l) : { 11: 'J', 12: 'Q', 13: 'K' }[l];
+  }
   function seatName(s) { return players[s] ? players[s].name : '座位' + s; }
   function relOf(seat) { return (seat - state.mySeat + 4) % 4; }
 
@@ -146,9 +149,10 @@ const Table = (() => {
 
   function renderInfo() {
     const myTeam = state.mySeat % 2;
+    const activeFail = state.curLevel === 14 && state.curLevelTeam !== null ? state.failA[state.curLevelTeam] : 0;
     $('info-levels').innerHTML =
-      `本局打 <b style="font-size:19px;color:#ffe600">${levelName(state.curLevel)}</b><br>` +
-      `<span class="me">我方 ${levelName(state.levels[myTeam])}级</span> · <span class="op">对方 ${levelName(state.levels[1 - myTeam])}级</span>`;
+      `本局打 <b style="font-size:19px;color:#ffe600">${levelName(state.curLevel, activeFail)}</b><br>` +
+      `<span class="me">我方 ${levelName(state.levels[myTeam], state.failA[myTeam])}级</span> · <span class="op">对方 ${levelName(state.levels[1 - myTeam], state.failA[1 - myTeam])}级</span>`;
     $('info-hand').textContent = `第 ${state.handNo} 局`;
   }
 
@@ -418,8 +422,19 @@ const Table = (() => {
     if (st.over) {
       lvText = st.winnerTeam === myTeam ? '🏆 恭喜！我方成功打A,赢得整场比赛！' : '😭 对方打A成功,比赛结束';
     } else {
-      lvText = `${st.doubleDown ? '🎉 双下！' : ''}${win ? '我方' : '对方'}升 <b>${st.delta}</b> 级 → 现在打 <b>${levelName(st.levels[st.winTeam])}</b>`;
-      if (st.levels[0] === 14 || st.levels[1] === 14) lvText += '<br>⚠️ ' + (st.levels[myTeam] === 14 ? '我方正在打A!需头游且队友非末游' : '对方正在打A,务必阻击!');
+      const fails = st.failA || state.failA;
+      if (st.activeATeam !== null && st.activeATeam !== undefined && !st.passedA) {
+        const activeName = st.activeATeam === myTeam ? '我方' : '对方';
+        const nextA = levelName(st.levels[st.activeATeam], fails[st.activeATeam]);
+        lvText = `⚠️ ${activeName}本次冲A未过 → ${st.levels[st.activeATeam] === 2 ? 'A3失败，回到 <b>2</b>' : `进入 <b>${nextA}</b>`}`;
+        if (st.winTeam !== st.activeATeam) {
+          const winnerName = st.winTeam === myTeam ? '我方' : '对方';
+          lvText += `<br>${st.doubleDown ? '双下！' : ''}${winnerName}升 <b>${st.delta}</b> 级 → <b>${levelName(st.levels[st.winTeam], fails[st.winTeam])}</b>`;
+        }
+      } else {
+        lvText = `${st.doubleDown ? '🎉 双下！' : ''}${win ? '我方' : '对方'}升 <b>${st.delta}</b> 级 → 现在打 <b>${levelName(st.levels[st.winTeam], fails[st.winTeam])}</b>`;
+      }
+      if (st.levels[0] === 14 || st.levels[1] === 14) lvText += '<br>⚠️ ' + (st.levels[myTeam] === 14 ? `我方正在打${levelName(14, fails[myTeam])}!需头游且队友非末游` : `对方正在打${levelName(14, fails[1 - myTeam])},务必阻击!`);
     }
     // 先渲染再填充剩余手牌卡片
     $('settle-content').innerHTML = `

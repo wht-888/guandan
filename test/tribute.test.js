@@ -98,6 +98,16 @@ const { JSDOM } = require('jsdom');
   $('btn-play').click();
   ok(captured && captured.kind === 'play' && captured.type === 'fullhouse' && captured.key === 14,
     '2(配)+AA+77出牌动作必须携带三A的key');
+
+  // 两队A阶段独立显示:当前打一队A2,二队仍显示7级。
+  window.Table.render({
+    phase: 'play', handNo: 9, levels: [14, 7], failA: [1, 0], curLevel: 14, curLevelTeam: 0,
+    over: false, winnerTeam: null, levelRanks: [14], mySeat: 0, myHand: [C(31, 0, 3)],
+    counts: [1, 8, 6, 9], current: 0, target: null, lastPlays: [null, null, null, null],
+    finished: [], tribute: null, settle: null, lastEvent: null
+  });
+  ok($('info-levels').textContent.includes('本局打 A2') && $('info-levels').textContent.includes('我方 A2级') && $('info-levels').textContent.includes('对方 7级'),
+    '牌桌应分别显示当前A2和对方7级');
   console.log(`OK: 还贡两步确认 ${n} 项全部通过`);
   process.exit(0);
 })().catch(e => { console.error('FAIL:', e.message); process.exit(1); });

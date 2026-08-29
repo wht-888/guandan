@@ -101,4 +101,49 @@ function ok(cond, msg) { n++; if (!cond) { console.error('FAIL:', msg); process.
     '缺少key的旧动作也应默认采用最强的三A解释');
 }
 
+// 两队独立A阶段:一队A1、二队4 → 二队升7且一队A2 → 打7 → 一队赢后下副打A2。
+{
+  const e = new Engine({ rng: () => 0.5 });
+  e.levels = [14, 4]; e.failA = [0, 0];
+  e.curLevel = 14; e.curLevelTeam = 0; e.phase = 'play';
+  e.finished = [1, 3]; // 二队双上,一队双下
+  ok(e.checkHandEnd(), 'A1局二队双上后应正常结算');
+  ok(e.levels[0] === 14 && e.failA[0] === 1, '一队A1失败后进入A2');
+  ok(e.levels[1] === 7, '二队从4双下对手后升到7');
+
+  e.startHand();
+  ok(e.curLevelTeam === 1 && e.curLevel === 7, '下一副由二队级牌权打7');
+  e.phase = 'play'; e.finished = [0, 1, 2]; // 一队头游+三游,但本副不是一队A局
+  ok(e.checkHandEnd() && !e.over, '一队在二队7局获胜不能直接过A');
+  ok(e.levels[0] === 14 && e.failA[0] === 1, '一队仍保持A2阶段');
+
+  e.startHand();
+  ok(e.curLevelTeam === 0 && e.curLevel === 14 && e.failA[0] === 1, '下下副由一队级牌权打A2');
+  e.phase = 'play'; e.finished = [0, 2];
+  ok(e.checkHandEnd() && e.over && e.winnerTeam === 0, '一队A2双上后成功过A');
+}
+
+// A3仍未通过则该队独立回到2,不影响对方升级。
+{
+  const e = new Engine({});
+  e.levels = [14, 4]; e.failA = [2, 0];
+  e.curLevel = 14; e.curLevelTeam = 0; e.phase = 'play'; e.finished = [1, 3];
+  ok(e.checkHandEnd(), 'A3失败局正常结算');
+  ok(e.levels[0] === 2 && e.failA[0] === 0, '一队A3失败后回到2');
+  ok(e.levels[1] === 7, '二队仍按双上从4升7');
+}
+
+// K升级进入A时从A1开始;A2失败后进入A3。
+{
+  const enter = new Engine({});
+  enter.levels = [13, 4]; enter.failA = [0, 0];
+  enter.curLevel = 4; enter.curLevelTeam = 1; enter.phase = 'play'; enter.finished = [0, 1, 2];
+  ok(enter.checkHandEnd() && enter.levels[0] === 14 && enter.failA[0] === 0, '一队从K升级后进入A1');
+
+  const fail = new Engine({});
+  fail.levels = [14, 7]; fail.failA = [1, 0];
+  fail.curLevel = 14; fail.curLevelTeam = 0; fail.phase = 'play'; fail.finished = [0, 1, 3]; // 一队头游+末游
+  ok(fail.checkHandEnd() && fail.levels[0] === 14 && fail.failA[0] === 2, '一队A2未过后进入A3');
+}
+
 console.log(`OK: engine 贡牌/首出/牌型解释 ${n} 项全部通过`);
