@@ -46,6 +46,8 @@ const Table = (() => {
       const mode = myTributeMode();
       if (!mode) return;
       const cardId = [...selected][0];
+      const card = state.myHand.find(c => c.id === cardId);
+      if (!canSubmitTributeCard(card, mode)) return;
       Sound.click();
       if (onAction) onAction({ kind: mode === 'give' ? 'giveTribute' : 'returnTribute', cardId });
     };
@@ -90,7 +92,7 @@ const Table = (() => {
   }
 
   function selectedManualPattern() {
-    if (!state || arranged || state.phase !== 'play' || selected.size < 2) return null;
+    if (!canManuallyArrange() || arranged || selected.size < 2) return null;
     const occupied = new Set(manualGroups.flatMap(g => g.cardIds));
     if ([...selected].some(id => occupied.has(id))) return null;
     const cards = state.myHand.filter(c => selected.has(c.id));
@@ -106,7 +108,11 @@ const Table = (() => {
     if (!b) return;
     b.classList.toggle('hidden', !!arranged);
     const occupied = new Set(manualGroups.flatMap(g => g.cardIds));
-    b.disabled = !!arranged || !state || state.phase !== 'play' || selected.size < 2 || [...selected].some(id => occupied.has(id));
+    b.disabled = !!arranged || !canManuallyArrange() || selected.size < 2 || [...selected].some(id => occupied.has(id));
+  }
+
+  function canManuallyArrange() {
+    return !!state && (state.phase === 'play' || state.phase === 'tribute');
   }
 
   function pinSelectedGroup() {
@@ -152,13 +158,29 @@ const Table = (() => {
     const bar = $('return-bar');
     if (!bar || !state) return;
     const mode = myTributeMode();
-    const show = !!mode && selected.size === 1;
+    const card = selected.size === 1 ? state.myHand.find(c => c.id === [...selected][0]) : null;
+    const show = !!mode && canSubmitTributeCard(card, mode);
     bar.classList.toggle('hidden', !show);
+    $('btn-return-ok').disabled = !show;
     if (show) {
-      const c = state.myHand.find(x => x.id === [...selected][0]);
-      $('return-tip').textContent = (mode === 'give' ? '进贡 ' : '还贡 ') + R.cardText(c) + ' ?';
+      $('return-tip').textContent = (mode === 'give' ? '进贡 ' : '还贡 ') + R.cardText(card) + ' ?';
       $('btn-return-ok').textContent = mode === 'give' ? '确认进贡' : '确认还贡';
     }
+  }
+
+  // 贡还限制仅约束提交,不限制为手动理牌而多选的牌(包括赖子/高牌)。
+  function canSubmitTributeCard(card, mode) {
+    if (!card || !mode || !state || R.isWild(card, state.levelRanks)) return false;
+    if (mode === 'return') {
+      const face = card.rank === 15 ? 2 : card.rank;
+      return card.suit !== 4 && face <= 10;
+    }
+    if (mode === 'give') {
+      const legal = state.myHand.filter(c => !R.isWild(c, state.levelRanks));
+      const best = Math.max.apply(null, legal.map(c => R.orderOf(c.rank, state.levelRanks)));
+      return R.orderOf(card.rank, state.levelRanks) === best;
+    }
+    return false;
   }
 
   function myTributeMode() {
@@ -323,32 +345,8 @@ const Table = (() => {
     });
   }
 
-  function onCardClick(el, c, tributeMode) {
+  function onCardClick(c) {
     return () => {
-      if (tributeMode === 'give') {
-        const legal = state.myHand.filter(x => !R.isWild(x, state.levelRanks));
-        const best = Math.max.apply(null, legal.map(x => R.orderOf(x.rank, state.levelRanks)));
-        if (R.isWild(c, state.levelRanks) || R.orderOf(c.rank, state.levelRanks) !== best) {
-          toast('进贡必须选择手中最大的非逢人配牌'); return;
-        }
-        Sound.select();
-        if (selected.has(c.id)) selected.delete(c.id);
-        else { selected.clear(); selected.add(c.id); }
-        refreshHandSelection();
-        syncReturnBar();
-        return;
-      }
-      if (tributeMode === 'return') {
-        const face = c.rank === 15 ? 2 : c.rank;
-        if (c.suit === 4 || face > 10 || R.isWild(c, state.levelRanks)) { toast('还贡必须是不大于10的普通牌'); return; }
-        Sound.select();
-        // 还贡两步确认: 点选(单选) -> 确认还贡
-        if (selected.has(c.id)) selected.delete(c.id);
-        else { selected.clear(); selected.add(c.id); }
-        refreshHandSelection();
-        syncReturnBar();
-        return;
-      }
       if (selected.has(c.id)) selected.delete(c.id); else selected.add(c.id);
       Sound.select();
       refreshHandSelection();
@@ -359,7 +357,6 @@ const Table = (() => {
     const box = $('my-hand');
     box.innerHTML = '';
     box.className = viewMode === 'grouped' ? 'grouped' : '';
-    const tributeMode = myTributeMode();
     // 应用组牌顺序(仅本局有效)
     let cards = state.myHand;
     let breaks = null, labels = null;
@@ -384,7 +381,7 @@ const Table = (() => {
 
     const mkEl = c => {
       const el = cardEl(c, false);
-      const activate = onCardClick(el, c, tributeMode);
+      const activate = onCardClick(c);
       el.setAttribute('role', 'button');
       el.setAttribute('aria-pressed', 'false');
       el.tabIndex = 0;
@@ -453,6 +450,7 @@ const Table = (() => {
         box.appendChild(col);
         stackCards(col, els, !!breaks || !!manualGroup);
       }
+      refreshHandSelection();
       placeActionBar();
       return;
     }
@@ -471,6 +469,7 @@ const Table = (() => {
       wrap.append(manualHeader(group), groupCards);
       box.appendChild(wrap);
     }
+    refreshHandSelection();
     placeActionBar();
   }
 
@@ -499,6 +498,7 @@ const Table = (() => {
       el.setAttribute('aria-pressed', String(on));
     }
     syncManualGroupBtn();
+    syncReturnBar();
   }
 
   function renderActionBar() {
@@ -518,9 +518,9 @@ const Table = (() => {
     const lines = t.pairs.filter(p => p.card).map(p => `${seatName(p.giver)} 进贡 ${R.cardText(p.card)} 给 ${seatName(p.receiver)}`);
     const pendingTributes = t.pendingTributes || [];
     const pendingReturns = t.pendingReturns || [];
-    if (pendingTributes.indexOf(state.mySeat) >= 0) lines.push('<b>👆 请选择最大牌的花色,再点「确认进贡」</b>');
+    if (pendingTributes.indexOf(state.mySeat) >= 0) lines.push('<b>可先多选牌「手动理牌」；进贡时仅选一张最大非赖子牌，再点「确认进贡」</b>');
     else if (pendingTributes.length) lines.push(`等待 ${pendingTributes.map(seatName).join('、')} 选择贡牌花色…`);
-    else if (pendingReturns.indexOf(state.mySeat) >= 0) lines.push('<b>👆 点选一张 ≤10 的牌, 再点「确认还贡」</b>');
+    else if (pendingReturns.indexOf(state.mySeat) >= 0) lines.push('<b>可先多选牌「手动理牌」；还贡时仅选一张 ≤10 的非赖子牌，再点「确认还贡」</b>');
     else if (pendingReturns.length) lines.push(`等待 ${pendingReturns.map(seatName).join('、')} 还贡…`);
     b.innerHTML = lines.join('<br>');
   }

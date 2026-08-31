@@ -33,6 +33,8 @@ const { JSDOM } = require('jsdom');
   const giveCards = [...$('my-hand').querySelectorAll('.card')];
   giveCards.find(el => Number(el.dataset.id) === 14).click();
   ok(!vis($('return-bar')), '进贡不能选择低于最大牌的♦4');
+  ok(giveCards.find(el => Number(el.dataset.id) === 14).classList.contains('selected'), '低牌可先选中用于手动理牌');
+  giveCards.find(el => Number(el.dataset.id) === 14).click();
   giveCards.find(el => Number(el.dataset.id) === 12).click();
   ok(vis($('return-bar')) && $('return-tip').textContent.includes('♣5'), '可选择具体花色♣5进贡');
   ok($('btn-return-ok').textContent === '确认进贡', '进贡确认按钮文案正确');
@@ -50,10 +52,12 @@ const { JSDOM } = require('jsdom');
   });
   const cards = [...$('my-hand').querySelectorAll('.card')];
 
-  // 点非法牌(K): 不选中不发送
+  // 不能还的K仍可选中整理,但不出现确认条且不发送
   cards[1].click();
   ok(!vis($('return-bar')), '点非法还贡牌不出现确认条');
   ok(captured === null, '点非法牌未发送');
+  ok(cards[1].classList.contains('selected'), '高牌可先选中用于手动理牌');
+  cards[1].click();
   // 点合法牌(2): 出现确认条但不发送
   cards[0].click();
   ok(vis($('return-bar')), '点合法牌出现确认条');

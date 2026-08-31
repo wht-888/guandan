@@ -69,6 +69,7 @@ const { JSDOM } = require('jsdom');
           if (!$('tribute-banner').innerHTML.includes(modeText)) { tributes++; }
           break;
         }
+        el.click(); // 贡还阶段允许为理牌多选;尝试下一张贡还候选前先取消当前张
       }
       continue;
     }

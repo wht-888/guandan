@@ -5,7 +5,7 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "test": "node test/rules.test.js && node test/engine.test.js && node test/ai.test.js && node test/arrange.test.js && node test/manual-group.test.js && node test/card-layout.test.js && node test/tribute.test.js && node test/simulate.js 30",
+    "test": "node test/rules.test.js && node test/engine.test.js && node test/ai.test.js && node test/arrange.test.js && node test/manual-group.test.js && node test/manual-tribute.test.js && node test/card-layout.test.js && node test/tribute.test.js && node test/simulate.js 30",
     "bench:ai": "node test/ai.benchmark.js 50",
     "bench:ai:previous": "node test/ai.benchmark.js 200 previous",
     "bench:ai:e78": "node test/ai.benchmark.js 200 e78f28a",

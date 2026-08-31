@@ -31,10 +31,10 @@ const { JSDOM } = require('jsdom');
   window.Table.bind(() => {}, () => {});
   window.Table.setPlayers([]);
   window.Table.render(state(fullHand));
-  ok($('btn-pin-group').disabled, '未选牌时单拎按钮应禁用');
+  ok($('btn-pin-group').disabled, '未选牌时手动理牌按钮应禁用');
 
   selectIds(sf.map(c => c.id));
-  ok(!$('btn-pin-group').disabled, '选中合法同花顺后单拎按钮可用');
+  ok(!$('btn-pin-group').disabled, '选中合法同花顺后手动理牌按钮可用');
   $('btn-pin-group').click();
   ok($('my-hand').querySelectorAll('.manual-card-group').length === 1, '创建一个手动暂存牌组');
   ok($('my-hand').querySelector('.manual-group-select').textContent === '同花顺', '显示同花顺标签');
