@@ -421,9 +421,10 @@ button { touch-action: manipulation; }
   transition: transform .16s cubic-bezier(.2,.8,.2,1), filter .16s, box-shadow .16s, border-color .16s;
 }
 .card::after { position: absolute; inset: 3px; border: 1px solid rgba(108,86,47,.07); border-radius: 5px; content: ""; pointer-events: none; }
-.card .r { position: relative; z-index: 1; font-size: 20px; line-height: .95; }
-.card .s { position: relative; z-index: 1; margin-top: 2px; font-size: 16px; line-height: 1; }
-.card .center { position: absolute; right: 6px; bottom: 5px; font-size: 27px; line-height: 1; opacity: .88; }
+.card-corner { position: relative; z-index: 1; display: inline-flex; flex: 0 0 auto; flex-direction: column; align-items: flex-start; font-family: Arial, "PingFang SC", sans-serif; font-weight: 900; }
+.card .r { font-size: 26px; line-height: 1; }
+.card .s { margin-top: 1px; font-size: 20px; line-height: 1; }
+.card .center { position: absolute; right: 5px; bottom: 4px; font-size: 34px; line-height: 1; opacity: 1; }
 .card.red { color: #c92725; }
 .card.black { color: #17211e; }
 .card.joker { color: #c42b28; background: linear-gradient(145deg,#fffefa,#f4ead9); }
@@ -432,9 +433,9 @@ button { touch-action: manipulation; }
 .card.selected { filter: brightness(.58) saturate(.82); }
 .card.playable-hint { outline: 3px solid #73cff2; outline-offset: 2px; }
 .card.mini { width: 40px; height: 57px; padding: 3px 3px; border-radius: 5px; cursor: default; }
-.card.mini .r { font-size: 13px; }
-.card.mini .s { font-size: 11px; }
-.card.mini .center { right: 3px; bottom: 2px; font-size: 15px; }
+.card.mini .r { font-size: 15px; }
+.card.mini .s { font-size: 13px; }
+.card.mini .center { right: 3px; bottom: 2px; font-size: 20px; }
 .card.mini .wild-badge { padding: 0 3px; font-size: 8px; }
 .card.back { border: 2px solid #d9ad65; background: repeating-linear-gradient(45deg,#8e3027 0 6px,#70231e 6px 12px); }
 .wild-badge { position: absolute; right: -6px; top: -7px; z-index: 3; padding: 2px 5px; border: 1px solid #fff0ad; border-radius: 5px; background: linear-gradient(180deg,#f7d678,#c89532); box-shadow: 0 2px 5px rgba(0,0,0,.38); color: #5c390a; font-family: "PingFang SC", sans-serif; font-size: 9px; font-weight: 900; }
@@ -452,14 +453,18 @@ button { touch-action: manipulation; }
 .tool-btn.on { border-color: #dcb768; background: linear-gradient(180deg,#b78038,#80531d); color: #fff5da; }
 .tool-btn:disabled { opacity: .42; cursor: not-allowed; transform: none; }
 
-#my-hand { position: absolute; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); z-index: 8; display: flex; min-height: 106px; justify-content: center; transform: translateX(-50%); }
+#my-hand { --stack-strip: 38px; --stack-min-strip: 16px; --stack-max-height: 280px; position: absolute; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); z-index: 8; display: flex; min-height: 106px; align-items: flex-end; justify-content: center; transform: translateX(-50%); }
 #my-hand.has-manual { align-items: flex-end; }
-#my-hand .card { margin-left: -34px; }
+#my-hand .card { margin-left: -28px; }
 #my-hand .card:first-child { margin-left: 0; }
 #my-hand .card.combo-start { margin-left: 15px; }
 #my-hand .card:hover { transform: translateY(-9px); }
 #my-hand .card.selected:hover { filter: brightness(.58) saturate(.82); transform: none; }
-#my-hand.grouped { align-items: flex-start; }
+#my-hand.grouped { align-items: flex-end; }
+#my-hand.grouped .card-corner { flex-direction: row; align-items: center; gap: 2px; }
+#my-hand.grouped .card .s { margin-top: 0; font-size: 21px; }
+#my-hand.grouped .card[data-rank="10"] .r { letter-spacing: -.07em; }
+#my-hand.grouped .card.joker .r { font-size: 16px; letter-spacing: 0; writing-mode: horizontal-tb; }
 #my-hand.grouped .rank-col { display: flex; margin-left: 10px; flex: 0 0 auto; flex-direction: column; }
 #my-hand.grouped .rank-col:first-child { margin-left: 0; }
 #my-hand.grouped .rank-col .card { margin-left: 0; margin-top: -48px; }
@@ -470,7 +475,7 @@ button { touch-action: manipulation; }
 #my-hand.grouped .combo-col .col-label { min-height: 14px; margin-bottom: 3px; color: #efd085; font-size: 9px; font-weight: 850; text-align: center; text-shadow: 0 1px 2px #000; white-space: nowrap; }
 
 .manual-card-group { display: flex; margin-left: 18px; padding-left: 9px; flex: 0 0 auto; flex-direction: column; align-items: center; border-left: 1px solid rgba(239,208,139,.42); }
-.manual-group-cards { display: flex; padding: 4px 5px 5px; border: 1px solid rgba(227,194,124,.22); border-radius: 9px; background: rgba(2,26,20,.3); box-shadow: inset 0 1px rgba(255,255,255,.04); }
+.manual-group-cards { display: flex; padding: 4px 5px 0; border: 1px solid rgba(227,194,124,.22); border-bottom: 0; border-radius: 9px; background: rgba(2,26,20,.3); box-shadow: inset 0 1px rgba(255,255,255,.04); }
 .manual-group-header { position: relative; z-index: 12; display: flex; min-height: 18px; margin-bottom: 3px; align-items: center; justify-content: center; gap: 3px; white-space: nowrap; }
 .manual-group-header button { border: 1px solid rgba(235,202,132,.28); outline: none; background: rgba(3,30,23,.84); color: #efd18e; cursor: pointer; font-weight: 800; }
 .manual-group-select { padding: 2px 7px; border-radius: 999px; font-size: 9px; letter-spacing: .5px; }
@@ -587,26 +592,32 @@ button { touch-action: manipulation; }
 
   .card { width: 35px; height: 50px; padding: 3px; border-radius: 5px; }
   .card::after { inset: 2px; border-radius: 3px; }
-  .card .r { font-size: 12px; }
-  .card .s { margin-top: 0; font-size: 9px; }
-  .card .center { right: 2px; bottom: 2px; font-size: 13px; }
+  .card .r { font-size: 15px; }
+  .card .s { margin-top: 0; font-size: 12px; }
+  .card .center { right: 2px; bottom: 2px; font-size: 19px; }
   .card.joker .r { font-size: 8px; letter-spacing: 1px; }
   .wild-badge { right: -4px; top: -5px; padding: 0 2px; border-radius: 3px; font-size: 7px; }
   .card.mini { width: 24px; height: 35px; padding: 2px; border-radius: 3px; }
-  .card.mini .r { font-size: 8px; }
-  .card.mini .s { font-size: 7px; }
-  .card.mini .center { font-size: 9px; }
+  .card.mini .r { font-size: 10px; }
+  .card.mini .s { font-size: 9px; }
+  .card.mini .center { font-size: 12px; }
   .card.mini.joker .r { font-size: 6px; }
   .card.selected { transform: none; }
 
-  #my-hand { bottom: max(7px, env(safe-area-inset-bottom)); min-height: 55px; }
-  #my-hand .card { margin-left: -23px; }
+  #my-hand { --stack-strip: 23px; --stack-min-strip: 12px; --stack-max-height: 170px; bottom: max(7px, env(safe-area-inset-bottom)); min-height: 55px; }
+  #my-hand .card { margin-left: -16px; }
+  #my-hand:not(.grouped) .card[data-rank="10"] .r { font-size: 14px; }
   #my-hand .card:first-child { margin-left: 0; }
   #my-hand .card.combo-start { margin-left: 7px; }
   #my-hand .card:hover { transform: none; }
   #my-hand .card.selected,
   #my-hand .card.selected:hover { transform: none; }
   #my-hand.grouped .rank-col { margin-left: 5px; }
+  #my-hand.grouped .card { width: 40px; height: 56px; padding: 2px; }
+  #my-hand.grouped .card-corner { gap: 1px; }
+  #my-hand.grouped .card .r { font-size: 18px; }
+  #my-hand.grouped .card .s { font-size: 14px; }
+  #my-hand.grouped .card.joker .r { font-size: 11px; }
   #my-hand.grouped .rank-col:first-child { margin-left: 0; }
   #my-hand.grouped .rank-col .card { margin-top: -34px; }
   #my-hand.grouped .rank-col .card:first-child { margin-top: 0; }
@@ -626,7 +637,7 @@ button { touch-action: manipulation; }
   #hand-tools { right: max(5px, env(safe-area-inset-right)); bottom: 69px; gap: 4px; }
   .tool-btn { min-height: 24px; padding: 3px 7px; border-radius: 7px; font-size: 8px; }
   .manual-card-group { margin-left: 8px; padding-left: 5px; }
-  .manual-group-cards { padding: 2px 3px 3px; border-radius: 6px; }
+  .manual-group-cards { padding: 2px 3px 0; border-radius: 6px; }
   .manual-group-header { min-height: 14px; margin-bottom: 2px; gap: 2px; }
   .manual-group-select { padding: 1px 4px; font-size: 6px; }
   .manual-group-restore { width: 15px; height: 15px; border-radius: 4px; font-size: 8px; }
@@ -693,16 +704,18 @@ button { touch-action: manipulation; }
 
   #my-hand { bottom: max(8px, env(safe-area-inset-bottom)); width: calc(100vw - 14px); min-height: 49px; }
   #my-hand .card { width: 32px; height: 46px; margin-left: -21px; }
-  #my-hand .card .r { font-size: 11px; }
-  #my-hand .card .s { font-size: 8px; }
-  #my-hand .card .center { font-size: 11px; }
+  #my-hand .card .r { font-size: 13px; }
+  #my-hand .card .s { font-size: 10px; }
+  #my-hand .card .center { font-size: 17px; }
   #my-hand .card.combo-start { margin-left: 4px; }
-  #my-hand.grouped { max-height: 130px; align-items: flex-start; }
+  #my-hand.grouped { --stack-strip: 18px; align-items: flex-end; }
   #my-hand.grouped .rank-col { margin-left: 1px; }
-  #my-hand.grouped .rank-col .card { width: 23px; }
-  #my-hand.grouped .rank-col .card .center { display: none; }
-  #my-hand.grouped .rank-col .card .r { font-size: 10px; }
-  #my-hand.grouped .rank-col .card .s { font-size: 7px; }
+  #my-hand.grouped .rank-col .card { width: 23px; height: 46px; padding: 1px; }
+  #my-hand.grouped .card-corner { gap: 0; }
+  #my-hand.grouped .rank-col .card .r { font-size: 12px; }
+  #my-hand.grouped .rank-col .card .s { font-size: 9px; }
+  #my-hand.grouped .rank-col .card[data-rank="10"] .r { font-size: 10px; }
+  #my-hand.grouped .rank-col .card.joker .r { font-size: 8px; }
   #my-hand.grouped .rank-col .card.selected { transform: none; }
   #my-hand.grouped .combo-col { margin-left: 2px; }
   #my-hand.grouped .combo-col .col-label { width: 23px; font-size: 5px; letter-spacing: -.5px; }

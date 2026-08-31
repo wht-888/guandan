@@ -69,7 +69,14 @@ const Table = (() => {
     };
     $('btn-pin-group').onclick = () => pinSelectedGroup();
     window.addEventListener('resize', () => {
-      if (state) requestAnimationFrame(placeActionBar);
+      if (state) requestAnimationFrame(() => {
+        // 横竖屏切换只重排现有牌列,保留选牌和手动暂存状态。
+        for (const col of $('my-hand').querySelectorAll('.rank-col')) {
+          const cards = Array.from(col.children).filter(el => el.classList.contains('card'));
+          stackCards(col, cards, !!col.querySelector('.col-label, .manual-group-header'));
+        }
+        placeActionBar();
+      });
     });
     syncViewBtn();
   }
@@ -187,11 +194,12 @@ const Table = (() => {
     el.className = 'card' + (mini ? ' mini' : '') +
       (isJoker ? ' joker' + (c.rank === 16 ? ' small' : '') : (c.suit === 1 || c.suit === 2 ? ' red' : ' black'));
     el.dataset.id = c.id;
+    el.dataset.rank = c.rank;
     el.setAttribute('aria-label', R.cardText(c));
     if (isJoker) {
-      el.innerHTML = `<span class="r">${c.rank === 16 ? '小王' : '大王'}</span>`;
+      el.innerHTML = `<span class="card-corner"><span class="r">${c.rank === 16 ? '小王' : '大王'}</span></span>`;
     } else {
-      el.innerHTML = `<span class="r">${R.RANK_NAMES[c.rank]}</span><span class="s">${R.SUITS[c.suit]}</span><span class="center">${R.SUITS[c.suit]}</span>`;
+      el.innerHTML = `<span class="card-corner"><span class="r">${R.RANK_NAMES[c.rank]}</span><span class="s">${R.SUITS[c.suit]}</span></span><span class="center">${R.SUITS[c.suit]}</span>`;
     }
     if (state && R.isWild(c, state.levelRanks)) {
       const b = document.createElement('span');
@@ -292,23 +300,26 @@ const Table = (() => {
     }
   }
 
-  // 分组列限高: 默认每张露出30px, 超过 maxColH 则加大重叠
+  // 叠牌尺寸从实际CSS读取,让放大的点数/花色在露出的牌头内保持可辨认。
   function stackCards(col, cardEls, hasLabel) {
-    const mobile = window.matchMedia
-      ? window.matchMedia('(max-width: 1024px), (max-height: 600px) and (pointer: coarse)').matches
-      : false;
-    const cardH = mobile ? 48 : 88;
-    const defStrip = mobile ? 24 : 40;   // 露出 点数+花色
-    const maxColH = (mobile ? 140 : 300) - (hasLabel ? (mobile ? 12 : 14) : 0);
+    if (!cardEls.length) return;
+    for (const el of cardEls) col.appendChild(el);
+    const handStyle = getComputedStyle($('my-hand'));
+    const cardH = parseFloat(getComputedStyle(cardEls[0]).height) || 91;
+    const defStrip = parseFloat(handStyle.getPropertyValue('--stack-strip')) || 38;
+    const minStrip = parseFloat(handStyle.getPropertyValue('--stack-min-strip')) || 12;
+    const maxHeight = parseFloat(handStyle.getPropertyValue('--stack-max-height')) || 280;
+    const header = hasLabel && col.querySelector('.col-label, .manual-group-header');
+    const headerH = header ? header.offsetHeight + (parseFloat(getComputedStyle(header).marginBottom) || 0) : 0;
+    const maxColH = Math.max(cardH, Math.min(maxHeight, window.innerHeight * .45) - headerH);
     const n = cardEls.length;
     let strip = defStrip;
     if (n > 1 && cardH + (n - 1) * defStrip > maxColH) {
-      strip = Math.max(mobile ? 12 : 24, Math.floor((maxColH - cardH) / (n - 1)));
+      strip = Math.max(minStrip, Math.floor((maxColH - cardH) / (n - 1)));
     }
     cardEls.forEach((el, i) => {
-      // 显式设置 marginTop: 列内有标签时第一张牌不再是 :first-child, 必须覆盖 CSS 的 -58px
+      // 标签不是牌,第一张必须显式清零,其余按实际牌高计算重叠。
       el.style.marginTop = i === 0 ? '0px' : (strip - cardH) + 'px';
-      col.appendChild(el);
     });
   }
 
