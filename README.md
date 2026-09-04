@@ -83,6 +83,10 @@ npm run test:ui   # jsdom 加载真实页面,模拟点击打完一整手
 npm run test:e2e  # 3 个 ws 客户端 + 1 机器人,联机打完两手(含双下进贡)
 ```
 
+## 课程设计文档
+
+- [用户需求说明书](docs/user-requirements.md)：用户目标、功能与质量需求、业务规则、典型用例、验收场景和当前实现差距。
+
 ## License
 
 MIT
